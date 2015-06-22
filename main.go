@@ -15,17 +15,20 @@ func main() {
 		etcdPeers  = flag.String("etcd-peers", "http://localhost:4001", "Comma-separated list of addresses of etcd endpoints to connect to")
 		keyPrefix  = flag.String("key-prefix", "/vulcand/frontends/", "Key prefix to list of services in etcd")
 	)
+
 	flag.Parse()
 
-	var dialer proxy.Dialer = proxy.Direct
-	if *socksProxy != "" {
-		dialer, _ = proxy.SOCKS5("tcp", *socksProxy, nil, proxy.Direct)
-	}
-
-	var transport = &http.Transport{Dial: dialer.Dial}
+	var (
+		dialer    proxy.Dialer = proxy.Direct
+		transport              = &http.Transport{Dial: dialer.Dial}
+	)
 
 	etcd := etcd.NewClient(strings.Split(*etcdPeers, ","))
-	etcd.SetTransport(transport)
+
+	if *socksProxy != "" {
+		dialer, _ = proxy.SOCKS5("tcp", *socksProxy, nil, proxy.Direct)
+		etcd.SetTransport(transport)
+	}
 
 	if (*keyPrefix)[len(*keyPrefix)-1] != '/' {
 		*keyPrefix = *keyPrefix + "/"

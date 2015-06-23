@@ -11,5 +11,6 @@ EXPOSE 8080
 CMD $GOPATH/bin/coco-aggregate-healthcheck \
 	--etcd-peers "$ETCD_PEERS" \
 	--key-prefix "$KEY_PREFIX" \
-	--vulcand "$VULCAND_ADDRESS"
+	--vulcand "$VULCAND_ADDRESS" \
+	--exclude "$EXCLUDE_SERVICES"
 	--socks-proxy "$SOCKS_PROXY"

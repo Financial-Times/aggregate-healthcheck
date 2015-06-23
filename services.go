@@ -15,9 +15,10 @@ type Service struct {
 }
 
 type CocoServiceRegistry struct {
-	etcd      *etcd.Client
-	keyPrefix string
+	etcd        *etcd.Client
+	keyPrefix   string
 	vulcandAddr string
+	excludes	map[string]bool
 }
 
 func (r *CocoServiceRegistry) Services() []Service {
@@ -28,12 +29,19 @@ func (r *CocoServiceRegistry) Services() []Service {
 
 	services := make([]Service, len(resp.Node.Nodes))
 	for i, node := range resp.Node.Nodes {
-		services[i] = Service{Name: strings.TrimPrefix(node.Key, r.keyPrefix), Host: r.vulcandAddr}
+		name := strings.TrimPrefix(node.Key, r.keyPrefix)
+		if r.excludes[name] != true {
+			services[i] = Service{Name: name, Host: r.vulcandAddr}
+		}
 	}
 
 	return services
 }
 
-func NewCocoServiceRegistry(etcd *etcd.Client, keyPrefix, vulcandAddr string) *CocoServiceRegistry {
-	return &CocoServiceRegistry{etcd: etcd, keyPrefix: keyPrefix, vulcandAddr: vulcandAddr}
+func NewCocoServiceRegistry(etcd *etcd.Client, keyPrefix, vulcandAddr string, excludeList []string) *CocoServiceRegistry {
+	excludes := make(map[string]bool)
+	for _, v := range excludeList {
+	    excludes[v] = true
+	}
+	return &CocoServiceRegistry{etcd: etcd, keyPrefix: keyPrefix, vulcandAddr: vulcandAddr, excludes: excludes}
 }

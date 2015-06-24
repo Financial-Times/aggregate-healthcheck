@@ -94,10 +94,12 @@ func NewCocoServiceHealthCheck(service Service, checker ServiceHealthChecker) ft
 }
 
 func CocoAggregateHealthHandler(registry ServiceRegistry, checker ServiceHealthChecker) func(w http.ResponseWriter, r *http.Request) {
-	checks := []fthealth.Check{}
-	for _, service := range registry.Services() {
-		checks = append(checks, NewCocoServiceHealthCheck(service, checker))
-	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		checks := []fthealth.Check{}
+		for _, service := range registry.Services() {
+			checks = append(checks, NewCocoServiceHealthCheck(service, checker))
+		}
 
-	return fthealth.Handler("Coco Aggregate Healthcheck", "Checks the health of all deployed services", checks...)
+		fthealth.Handler("Coco Aggregate Healthcheck", "Checks the health of all deployed services", checks...)(w, r)
+	}
 }

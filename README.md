@@ -15,6 +15,7 @@ docker run \
     --env ETCD_PEERS=localhost:4001 \
     --env VULCAND_ADDRESS=localhost:8080 \
     --env KEY_PREFIX=/vulcand/frontends \
+    --env EXCLUDE_SERVICES=aggregate-healthcheck \
     coco/coco-aggregate-healthcheck
 ```
 
@@ -25,7 +26,8 @@ go install
 $GOPATH/bin/coco-aggregate-healthcheck \
     --ectd-peers localhost:4001 \
     --vulcand localhost:8080 \
-    --key-prefix /vulcand/frontends
+    --key-prefix /vulcand/frontends \
+    --exclude aggregate-healthcheck
 ```
 
 You can also use an SSH tunnel as a SOCKS proxy
@@ -36,5 +38,6 @@ $GOPATH/bin/coco-aggregate-healthcheck \
     --socks-proxy localhost:2323 \
     --ectd-peers localhost:4001 \
     --vulcand localhost:8080 \
-    --key-prefix /vulcand/frontends
+    --key-prefix /vulcand/frontends \
+    --exclude aggregate-healthcheck
 ```

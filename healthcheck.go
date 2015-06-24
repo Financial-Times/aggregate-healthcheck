@@ -5,12 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"git.svc.ft.com/scm/gl/fthealth.git"
-	"github.com/gorilla/http/client"
-	"golang.org/x/net/proxy"
 	"io/ioutil"
 	"net/http"
 	"strings"
-	"time"
 )
 
 type healthcheckResponse struct {
@@ -26,38 +23,30 @@ type ServiceHealthChecker interface {
 }
 
 type CocoServiceHealthChecker struct {
-	dialer proxy.Dialer
+	client *http.Client
 }
 
-func NewCocoServiceHealthChecker(dialer proxy.Dialer) *CocoServiceHealthChecker {
-	return &CocoServiceHealthChecker{dialer: dialer}
+func NewCocoServiceHealthChecker(client *http.Client) *CocoServiceHealthChecker {
+	return &CocoServiceHealthChecker{client: client}
 }
 
 func (c *CocoServiceHealthChecker) Check(service Service) error {
-	conn, err := c.dialer.Dial("tcp", service.Host)
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/__health", service.Host), nil)
+	if err != nil {
+		return errors.New("Error constructing healthcheck request: " + err.Error())
+	}
+
+	req.Host = service.Name
+
+	resp, err := c.client.Do(req)
 	if err != nil {
 		return errors.New("Error performing healthcheck: " + err.Error())
 	}
 
-	conn.SetDeadline(time.Now().Add(1 * time.Second))
-	defer conn.Close()
+	defer resp.Body.Close()
 
-	http := client.NewClient(conn)
-	headers := []client.Header{client.Header{Key: "Host", Value: service.Name}}
-	req := &client.Request{Version: client.HTTP_1_1, Method: "GET", Path: "/__health", Headers: headers}
-
-	err = http.WriteRequest(req)
-	if err != nil {
-		return errors.New("Error performing healthcheck: " + err.Error())
-	}
-
-	resp, err := http.ReadResponse()
-	if err != nil {
-		return errors.New("Error reading healthcheck response: " + err.Error())
-	}
-
-	if resp.Status.Code != 200 {
-		return fmt.Errorf("Healthcheck endpoint returned non-200 status (%v %v)", resp.Status.Code, resp.Status.Reason)
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("Healthcheck endpoint returned non-200 status (%v)", resp.Status)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
@@ -66,8 +55,7 @@ func (c *CocoServiceHealthChecker) Check(service Service) error {
 	}
 
 	health := &healthcheckResponse{}
-	err = json.Unmarshal(body, &health)
-	if err != nil {
+	if err := json.Unmarshal(body, &health); err != nil {
 		return errors.New("Error parsing healthcheck response: " + err.Error())
 	}
 

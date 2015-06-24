@@ -20,22 +20,22 @@ func main() {
 
 	flag.Parse()
 
-	var dialer proxy.Dialer = proxy.Direct
-
-	etcd := etcd.NewClient(strings.Split(*etcdPeers, ","))
+	transport := &http.Transport{Dial: proxy.Direct.Dial}
 
 	if *socksProxy != "" {
-		dialer, _ = proxy.SOCKS5("tcp", *socksProxy, nil, proxy.Direct)
-		etcd.SetTransport(&http.Transport{Dial: dialer.Dial})
+		dialer, _ := proxy.SOCKS5("tcp", *socksProxy, nil, proxy.Direct)
+		transport.Dial = dialer.Dial
 	}
 
 	if (*keyPrefix)[len(*keyPrefix)-1] != '/' {
 		*keyPrefix = *keyPrefix + "/"
 	}
 
-	registry := NewCocoServiceRegistry(etcd, *keyPrefix, *vulcand, strings.Split(*exclude, ","))
+	etcd := etcd.NewClient(strings.Split(*etcdPeers, ","))
+	etcd.SetTransport(transport)
 
-	checker := NewCocoServiceHealthChecker(dialer)
+	registry := NewCocoServiceRegistry(etcd, *keyPrefix, *vulcand, strings.Split(*exclude, ","))
+	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport})
 	handler := CocoAggregateHealthHandler(registry, checker)
 
 	r := mux.NewRouter()

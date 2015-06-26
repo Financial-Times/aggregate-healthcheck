@@ -11,11 +11,12 @@ import (
 
 func main() {
 	var (
-		socksProxy = flag.String("socks-proxy", "", "Use specified SOCKS proxy (e.g. localhost:2323)")
-		etcdPeers  = flag.String("etcd-peers", "http://localhost:4001", "Comma-separated list of addresses of etcd endpoints to connect to")
-		keyPrefix  = flag.String("key-prefix", "/vulcand/frontends/", "Key prefix to list of services in etcd")
-		vulcand    = flag.String("vulcand", "localhost:8080", "Vulcand address")
-		exclude    = flag.String("exclude", "", "Comma-separated list of services to exclude from healthcheck")
+		socksProxy  = flag.String("socks-proxy", "", "Use specified SOCKS proxy (e.g. localhost:2323)")
+		etcdPeers   = flag.String("etcd-peers", "http://localhost:4001", "Comma-separated list of addresses of etcd endpoints to connect to")
+		keyPrefix   = flag.String("key-prefix", "/vulcand/frontends/", "Key prefix to list of services in etcd")
+		vulcand     = flag.String("vulcand", "localhost:8080", "Vulcand address")
+		exclude     = flag.String("exclude", "", "Comma-separated list of services to exclude from healthcheck")
+		hostname    = flag.String("hostname", "", "Public hostname - cluster entrypoint")
 	)
 
 	flag.Parse()
@@ -36,7 +37,7 @@ func main() {
 
 	registry := NewCocoServiceRegistry(etcd, *keyPrefix, *vulcand, strings.Split(*exclude, ","))
 	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport})
-	handler := CocoAggregateHealthHandler(registry, checker)
+	handler := CocoAggregateHealthHandler(*hostname, registry, checker)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", handler)

@@ -12,5 +12,7 @@ CMD $GOPATH/bin/coco-aggregate-healthcheck \
 	--etcd-peers "$ETCD_PEERS" \
 	--key-prefix "$KEY_PREFIX" \
 	--vulcand "$VULCAND_ADDRESS" \
-	--exclude "$EXCLUDE_SERVICES"
-	--socks-proxy "$SOCKS_PROXY"
+	--exclude "$EXCLUDE_SERVICES" \
+	--socks-proxy "$SOCKS_PROXY" \
+        --elb-hostname "$ELB_HOSTNAME"
+

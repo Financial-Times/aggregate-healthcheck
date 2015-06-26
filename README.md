@@ -12,7 +12,7 @@ docker build -t coco/coco-aggregate-healthcheck
 
 ```
 docker run \
-    --env ETCD_PEERS=localhost:4001 \
+    --env ETCD_PEERS=http://localhost:4001 \
     --env VULCAND_ADDRESS=localhost:8080 \
     --env KEY_PREFIX=/vulcand/frontends \
     --env EXCLUDE_SERVICES=aggregate-healthcheck \
@@ -25,7 +25,7 @@ When developing locally it's easier to run the binary directly, rather than thro
 ```
 go install
 $GOPATH/bin/coco-aggregate-healthcheck \
-    --ectd-peers localhost:4001 \
+    --etcd-peers http://localhost:4001 \
     --vulcand localhost:8080 \
     --key-prefix /vulcand/frontends \
     --exclude aggregate-healthcheck \
@@ -38,7 +38,7 @@ You can also use an SSH tunnel as a SOCKS proxy
 ssh -D 2323 -N core@$FLEETCTL_TUNNEL
 $GOPATH/bin/coco-aggregate-healthcheck \
     --socks-proxy localhost:2323 \
-    --ectd-peers localhost:4001 \
+    --etcd-peers http://localhost:4001 \
     --vulcand localhost:8080 \
     --key-prefix /vulcand/frontends \
     --exclude aggregate-healthcheck \

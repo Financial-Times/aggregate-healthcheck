@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-func CocoAggregateHealthHandler(elbHost string, registry ServiceRegistry, checker ServiceHealthChecker) func(w http.ResponseWriter, r *http.Request) {
+func CocoAggregateHealthHandler(hostname string, registry ServiceRegistry, checker ServiceHealthChecker) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		checks := []fthealth.Check{}
 		for _, service := range registry.Services() {
@@ -17,12 +17,12 @@ func CocoAggregateHealthHandler(elbHost string, registry ServiceRegistry, checke
 			fthealth.Handler("Coco Aggregate Healthcheck", "Checks the health of all deployed services", checks...)(w, r)
 		} else {
 
-			htmlHandler("Coco Aggregate Healthcheck", elbHost, checks...)(w, r)
+			htmlHandler("Coco Aggregate Healthcheck", hostname, checks...)(w, r)
 		}
 	}
 }
 
-func htmlHandler(name, elbHost string, checks ...fthealth.Check) func(w http.ResponseWriter, r *http.Request) {
+func htmlHandler(name, hostname string, checks ...fthealth.Check) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		resp := "<!DOCTYPE html>" +
 			"<head>" +
@@ -41,7 +41,7 @@ func htmlHandler(name, elbHost string, checks ...fthealth.Check) func(w http.Res
 		servicesHtml := ""
 
 		for _, check := range checks {
-			serviceHealthUrl := fmt.Sprintf("http://%s/health/%s/__health", elbHost, check.Name)
+			serviceHealthUrl := fmt.Sprintf("http://%s/health/%s/__health", hostname, check.Name)
 			err := check.Checker()
 			if err != nil {
 				servicesHtml += fmt.Sprintf(serviceHtmlTemplate, serviceHealthUrl, check.Name, "CRITICAL")

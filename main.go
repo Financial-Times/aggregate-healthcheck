@@ -16,7 +16,7 @@ func main() {
 		keyPrefix   = flag.String("key-prefix", "/vulcand/frontends/", "Key prefix to list of services in etcd")
 		vulcand     = flag.String("vulcand", "localhost:8080", "Vulcand address")
 		exclude     = flag.String("exclude", "", "Comma-separated list of services to exclude from healthcheck")
-		elbHostname = flag.String("elb-hostname", "", "Public hostname - cluster entrypoint")
+		hostname    = flag.String("hostname", "", "Public hostname - cluster entrypoint")
 	)
 
 	flag.Parse()
@@ -37,7 +37,7 @@ func main() {
 
 	registry := NewCocoServiceRegistry(etcd, *keyPrefix, *vulcand, strings.Split(*exclude, ","))
 	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport})
-	handler := CocoAggregateHealthHandler(*elbHostname, registry, checker)
+	handler := CocoAggregateHealthHandler(*hostname, registry, checker)
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", handler)

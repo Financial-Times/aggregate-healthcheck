@@ -16,6 +16,7 @@ docker run \
     --env VULCAND_ADDRESS=localhost:8080 \
     --env KEY_PREFIX=/vulcand/frontends \
     --env EXCLUDE_SERVICES=aggregate-healthcheck \
+    --env ELB_HOSTNAME=cluster-elb-1694467668.eu-west-1.elb.amazonaws.com \
     coco/coco-aggregate-healthcheck
 ```
 
@@ -27,7 +28,8 @@ $GOPATH/bin/coco-aggregate-healthcheck \
     --ectd-peers localhost:4001 \
     --vulcand localhost:8080 \
     --key-prefix /vulcand/frontends \
-    --exclude aggregate-healthcheck
+    --exclude aggregate-healthcheck \
+    --elb-hostname cluster-elb-1694467668.eu-west-1.elb.amazonaws.com
 ```
 
 You can also use an SSH tunnel as a SOCKS proxy
@@ -39,5 +41,6 @@ $GOPATH/bin/coco-aggregate-healthcheck \
     --ectd-peers localhost:4001 \
     --vulcand localhost:8080 \
     --key-prefix /vulcand/frontends \
-    --exclude aggregate-healthcheck
+    --exclude aggregate-healthcheck \
+    --elb-hostname cluster-elb-1694467668.eu-west-1.elb.amazonaws.com    
 ```

@@ -29,7 +29,6 @@ $GOPATH/bin/coco-aggregate-healthcheck \
     --vulcand localhost:8080 \
     --key-prefix /vulcand/frontends \
     --exclude aggregate-healthcheck \
-    --hostname cluster-elb-1694467668.eu-west-1.elb.amazonaws.com
 ```
 
 You can also use an SSH tunnel as a SOCKS proxy
@@ -42,5 +41,4 @@ $GOPATH/bin/coco-aggregate-healthcheck \
     --vulcand localhost:8080 \
     --key-prefix /vulcand/frontends \
     --exclude aggregate-healthcheck \
-    --hostname cluster-elb-1694467668.eu-west-1.elb.amazonaws.com    
 ```

@@ -14,5 +14,5 @@ CMD $GOPATH/bin/coco-aggregate-healthcheck \
 	--vulcand "$VULCAND_ADDRESS" \
 	--exclude "$EXCLUDE_SERVICES" \
 	--socks-proxy "$SOCKS_PROXY" \
-        --elb-hostname "$ELB_HOSTNAME"
+	--hostname "$HOSTNAME"
 

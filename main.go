@@ -13,9 +13,8 @@ func main() {
 	var (
 		socksProxy = flag.String("socks-proxy", "", "Use specified SOCKS proxy (e.g. localhost:2323)")
 		etcdPeers  = flag.String("etcd-peers", "http://localhost:4001", "Comma-separated list of addresses of etcd endpoints to connect to")
-		keyPrefix  = flag.String("key-prefix", "/vulcand/frontends/", "Key prefix to list of services in etcd")
+		keyPrefix  = flag.String("key-prefix", "/services/", "Key prefix to list of services in etcd")
 		vulcand    = flag.String("vulcand", "localhost:8080", "Vulcand address")
-		exclude    = flag.String("exclude", "", "Comma-separated list of services to exclude from healthcheck")
 	)
 
 	flag.Parse()
@@ -34,7 +33,7 @@ func main() {
 	etcd := etcd.NewClient(strings.Split(*etcdPeers, ","))
 	etcd.SetTransport(transport)
 
-	registry := NewCocoServiceRegistry(etcd, *keyPrefix, *vulcand, strings.Split(*exclude, ","))
+	registry := NewCocoServiceRegistry(etcd, *keyPrefix, *vulcand)
 	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport})
 	handler := CocoAggregateHealthHandler(registry, checker)
 

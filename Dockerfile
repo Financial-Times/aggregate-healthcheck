@@ -3,7 +3,7 @@ FROM golang
 RUN go get github.com/Financial-Times/coco-aggregate-healthcheck
 
 ENV ETCD_PEERS http://localhost:4001
-ENV KEY_PREFIX /vulcand/frontends
+ENV KEY_PREFIX /services
 ENV VULCAND_ADDRESS localhost:8080
 
 EXPOSE 8080

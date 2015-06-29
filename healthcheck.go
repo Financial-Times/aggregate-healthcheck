@@ -31,7 +31,7 @@ func NewCocoServiceHealthChecker(client *http.Client) *CocoServiceHealthChecker 
 }
 
 func (c *CocoServiceHealthChecker) Check(service Service) error {
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s/__health", service.Host), nil)
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s%s", service.Host, service.Healthcheck), nil)
 	if err != nil {
 		return errors.New("Error constructing healthcheck request: " + err.Error())
 	}

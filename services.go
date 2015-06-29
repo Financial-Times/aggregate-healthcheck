@@ -10,38 +10,38 @@ type ServiceRegistry interface {
 }
 
 type Service struct {
-	Name string
-	Host string
+	Name        string
+	Host        string
+	Healthcheck string
 }
 
 type CocoServiceRegistry struct {
 	etcd        *etcd.Client
 	keyPrefix   string
 	vulcandAddr string
-	excludes    map[string]bool
 }
 
 func (r *CocoServiceRegistry) Services() []Service {
-	resp, err := r.etcd.Get(r.keyPrefix, true, false)
+	resp, err := r.etcd.Get(r.keyPrefix, true, true)
 	if err != nil {
 		panic(err.Error())
 	}
 
 	services := []Service{}
-	for _, node := range resp.Node.Nodes {
-		name := strings.TrimPrefix(node.Key, r.keyPrefix)
-		if r.excludes[name] != true {
-			services = append(services, Service{Name: name, Host: r.vulcandAddr})
+	for _, service := range resp.Node.Nodes {
+		for _, instance := range service.Nodes {
+			resp, err := r.etcd.Get(instance.Key+"/healthcheck", false, false)
+			if err == nil {
+				name := strings.TrimPrefix(service.Key, r.keyPrefix)
+				services = append(services, Service{Name: name, Host: r.vulcandAddr, Healthcheck: resp.Node.Value})
+				break
+			}
 		}
 	}
 
 	return services
 }
 
-func NewCocoServiceRegistry(etcd *etcd.Client, keyPrefix, vulcandAddr string, excludeList []string) *CocoServiceRegistry {
-	excludes := make(map[string]bool)
-	for _, v := range excludeList {
-		excludes[v] = true
-	}
-	return &CocoServiceRegistry{etcd: etcd, keyPrefix: keyPrefix, vulcandAddr: vulcandAddr, excludes: excludes}
+func NewCocoServiceRegistry(etcd *etcd.Client, keyPrefix, vulcandAddr string) *CocoServiceRegistry {
+	return &CocoServiceRegistry{etcd: etcd, keyPrefix: keyPrefix, vulcandAddr: vulcandAddr}
 }

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"git.svc.ft.com/scm/gl/fthealth.git"
+	"github.com/Financial-Times/go-fthealth"
 	"io/ioutil"
 	"net/http"
 	"strings"

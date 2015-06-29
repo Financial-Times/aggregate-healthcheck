@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"git.svc.ft.com/scm/gl/fthealth.git"
+	"github.com/Financial-Times/go-fthealth"
 	"net/http"
 )
 

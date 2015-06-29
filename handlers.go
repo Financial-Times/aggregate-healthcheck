@@ -14,7 +14,7 @@ func CocoAggregateHealthHandler(hostname string, registry ServiceRegistry, check
 		}
 
 		if r.Header.Get("Accept") == "application/json" {
-			fthealth.Handler("Coco Aggregate Healthcheck", "Checks the health of all deployed services", checks...)(w, r)
+			fthealth.HandlerParallel("Coco Aggregate Healthcheck", "Checks the health of all deployed services", checks...)(w, r)
 		} else {
 
 			htmlHandler("Coco Aggregate Healthcheck", hostname, checks...)(w, r)
@@ -40,7 +40,7 @@ func htmlHandler(name, hostname string, checks ...fthealth.Check) func(w http.Re
 		serviceHtmlTemplate := "<dd>- <a href=\"%s\">%s</a>  : %s</dd>"
 		servicesHtml := ""
 
-		checkResult := fthealth.RunCheck(name, name, false, checks...)
+		checkResult := fthealth.RunCheck(name, name, true, checks...)
 		for _, check := range checkResult.Checks {
 			serviceHealthUrl := fmt.Sprintf("http://%s/health/%s/__health", hostname, check.Name)
 			if !check.Ok {

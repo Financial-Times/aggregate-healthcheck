@@ -40,10 +40,10 @@ func htmlHandler(name, hostname string, checks ...fthealth.Check) func(w http.Re
 		serviceHtmlTemplate := "<dd>- <a href=\"%s\">%s</a>  : %s</dd>"
 		servicesHtml := ""
 
-		for _, check := range checks {
+		checkResult := fthealth.RunCheck(name, name, false, checks...)
+		for _, check := range checkResult.Checks {
 			serviceHealthUrl := fmt.Sprintf("http://%s/health/%s/__health", hostname, check.Name)
-			err := check.Checker()
-			if err != nil {
+			if !check.Ok {
 				servicesHtml += fmt.Sprintf(serviceHtmlTemplate, serviceHealthUrl, check.Name, "CRITICAL")
 			} else {
 				servicesHtml += fmt.Sprintf(serviceHtmlTemplate, serviceHealthUrl, check.Name, "OK")

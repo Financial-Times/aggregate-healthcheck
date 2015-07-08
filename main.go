@@ -7,6 +7,7 @@ import (
 	"golang.org/x/net/proxy"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -34,7 +35,7 @@ func main() {
 	etcd.SetTransport(transport)
 
 	registry := NewCocoServiceRegistry(etcd, *keyPrefix, *vulcand)
-	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport})
+	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport, Timeout: 5 * time.Second})
 	handler := CocoAggregateHealthHandler(registry, checker)
 
 	r := mux.NewRouter()

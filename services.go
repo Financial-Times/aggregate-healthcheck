@@ -33,7 +33,6 @@ func (r *CocoServiceRegistry) Services() []Service {
 		if err == nil {
 			name := strings.TrimPrefix(service.Key, r.keyPrefix)
 			services = append(services, Service{Name: name, Host: r.vulcandAddr, Healthcheck: resp.Node.Value})
-			break
 		}
 	}
 

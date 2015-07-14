@@ -29,13 +29,11 @@ func (r *CocoServiceRegistry) Services() []Service {
 
 	services := []Service{}
 	for _, service := range resp.Node.Nodes {
-		for _, instance := range service.Nodes {
-			resp, err := r.etcd.Get(instance.Key, false, false)
-			if err == nil {
-				name := strings.TrimPrefix(service.Key, r.keyPrefix)
-				services = append(services, Service{Name: name, Host: r.vulcandAddr, Healthcheck: resp.Node.Value})
-				break
-			}
+		resp, err := r.etcd.Get(service.Key, false, false)
+		if err == nil {
+			name := strings.TrimPrefix(service.Key, r.keyPrefix)
+			services = append(services, Service{Name: name, Host: r.vulcandAddr, Healthcheck: resp.Node.Value})
+			break
 		}
 	}
 

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"github.com/coreos/go-etcd/etcd"
+	"log"
 	"strings"
 )
 
@@ -29,10 +31,13 @@ func (r *CocoServiceRegistry) Services() []Service {
 
 	services := []Service{}
 	for _, service := range resp.Node.Nodes {
+		log.Printf("INFO Service: %s", service)
 		resp, err := r.etcd.Get(service.Key, false, false)
 		if err == nil {
 			name := strings.TrimPrefix(service.Key, r.keyPrefix)
-			services = append(services, Service{Name: name, Host: r.vulcandAddr, Healthcheck: resp.Node.Value})
+			healthcheck := fmt.Sprintf("/health/%s%s", name, resp.Node.Value)
+			log.Printf("INFO Healtheck: %s", healthcheck)
+			services = append(services, Service{Name: name, Host: r.vulcandAddr, Healthcheck: healthcheck})
 		}
 	}
 

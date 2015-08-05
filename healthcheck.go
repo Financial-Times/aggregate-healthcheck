@@ -78,7 +78,7 @@ func (c *CocoServiceHealthChecker) Check(service Service) error {
 func NewCocoServiceHealthCheck(service Service, checker ServiceHealthChecker) fthealth.Check {
 	return fthealth.Check{
 		Name:     service.Name,
-		Severity: 1,
+		Severity: 2,
 		Checker:  func() error { return checker.Check(service) },
 	}
 }

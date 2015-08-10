@@ -5,7 +5,9 @@ Looks up the services exposed through vulcand, calls their /__health endpoint an
 ## Building
 
 ```
-docker build -t coco/coco-aggregate-healthcheck
+CGO_ENABLED=0 go build -a -installsuffix cgo -o coco-aggregate-healthcheck .
+
+docker build -t coco/coco-aggregate-healthcheck .
 ```
 
 ## Running

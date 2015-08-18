@@ -1,4 +1,4 @@
-FROM alpine:3.2
+FROM gliderlabs/alpine:3.2
 
 RUN apk --update add go git\
   && export GOPATH=/.gopath \

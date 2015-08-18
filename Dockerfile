@@ -6,7 +6,7 @@ RUN apk --update add go git\
   && go get github.com/Financial-Times/coco-aggregate-healthcheck \
   && cd aggregate-healthcheck \
   && go build \
-  && cp aggregate-healthcheck ../coco-aggregate-healthcheck \
+  && mv aggregate-healthcheck /coco-aggregate-healthcheck \
   && apk del go git \
   && rm -rf $GOPATH /var/cache/apk/*
 

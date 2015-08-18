@@ -1,10 +1,15 @@
-FROM gliderlabs/alpine:3.2
+FROM alpine:3.2
+
+RUN apk --update add go git\
+  && export GOPATH=/.gopath \
+  && go get github.com/Financial-Times/coco-aggregate-healthcheck \
+  && go build github.com/Financial-Times/coco-aggregate-healthcheck \
+  && apk del go git \
+  && rm -rf $GOPATH /var/cache/apk/*
 
 ENV ETCD_PEERS http://localhost:4001
 ENV KEY_PREFIX /services
 ENV VULCAND_ADDRESS localhost:8080
-
-ADD coco-aggregate-healthcheck /coco-aggregate-healthcheck
 
 EXPOSE 8080
 

@@ -76,9 +76,14 @@ func (c *CocoServiceHealthChecker) Check(service Service) error {
 }
 
 func NewCocoServiceHealthCheck(service Service, checker ServiceHealthChecker) fthealth.Check {
+	//horrible hack...but we really need this for the soft go-live
+	var severity uint8 = 2
+	if strings.Contains(service.Name, "synthetic-image-publication-monitor") {
+		severity = 1
+	}
 	return fthealth.Check{
 		Name:     service.Name,
-		Severity: 2,
+		Severity: severity,
 		Checker:  func() error { return checker.Check(service) },
 	}
 }

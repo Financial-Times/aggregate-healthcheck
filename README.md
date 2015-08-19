@@ -14,10 +14,9 @@ docker build -t coco/coco-aggregate-healthcheck .
 
 ```
 docker run \
-    --env ETCD_PEERS=http://localhost:4001 \
+    --env ETCD_PEERS=http://localhost:2379 \
     --env VULCAND_ADDRESS=localhost:8080 \
-    --env KEY_PREFIX=/vulcand/frontends \
-    --env HOSTNAME=cluster-elb-1694467668.eu-west-1.elb.amazonaws.com \
+    --env KEY_PREFIX=/ft/healthcheck \
     coco/coco-aggregate-healthcheck
 ```
 

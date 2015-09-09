@@ -82,8 +82,11 @@ func NewCocoServiceHealthCheck(service Service, checker ServiceHealthChecker) ft
 		severity = 1
 	}
 	return fthealth.Check{
-		Name:     service.Name,
-		Severity: severity,
-		Checker:  func() error { return checker.Check(service) },
+		BusinessImpact:   "On its own this failure does not have a business impact but it represents a degradation of the cluster health.",
+		Name:             service.Name,
+		PanicGuide:       "https://sites.google.com/a/ft.com/technology/systems/dynamic-semantic-publishing/coco/runbook",
+		Severity:         severity,
+		TechnicalSummary: "The service is not healthy. Please check the panic guide.",
+		Checker:          func() error { return checker.Check(service) },
 	}
 }

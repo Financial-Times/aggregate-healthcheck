@@ -37,7 +37,7 @@ func main() {
 	etcd.SetTransport(transport)
 
 	registry := NewCocoServiceRegistry(etcd, *keyPrefix, *vulcand)
-	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport, Timeout: 5 * time.Second})
+	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport, Timeout: 10 * time.Second})
 	handler := CocoAggregateHealthHandler(registry, checker)
 
 	r := mux.NewRouter()

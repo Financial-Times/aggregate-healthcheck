@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 	"net/http"
@@ -14,15 +15,28 @@ func CocoAggregateHealthHandler(registry ServiceRegistry, checker ServiceHealthC
 		}
 
 		if r.Header.Get("Accept") == "application/json" {
-			fthealth.HandlerParallel("Coco Aggregate Healthcheck", "Checks the health of all deployed services", checks...)(w, r)
+			jsonHandler("Coco Aggregate Healthcheck", "Checks the health of all deployed services", checks...)(w, r)
 		} else {
 
-			htmlHandler("Coco Aggregate Healthcheck", checks...)(w, r)
+			htmlHandler("Coco Aggregate Healthcheck", "Checks the health of all deployed services", checks...)(w, r)
 		}
 	}
 }
 
-func htmlHandler(name string, checks ...fthealth.Check) func(w http.ResponseWriter, r *http.Request) {
+func jsonHandler(name, description string, checks ...fthealth.Check) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		health := fthealth.RunCheck(name, description, true, checks...)
+
+		w.Header().Set("Content-Type", "application/json")
+		enc := json.NewEncoder(w)
+		err := enc.Encode(health)
+		if err != nil {
+			panic("write this bit")
+		}
+	}
+}
+
+func htmlHandler(name, description string, checks ...fthealth.Check) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		resp := "<!DOCTYPE html>" +
 			"<head>" +

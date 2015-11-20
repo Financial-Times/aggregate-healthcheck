@@ -27,16 +27,16 @@ func (hch *hchandlers) handle(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (hch *hchandlers) checks() []fthealth.Check {
+func (hch *hchandlers) result() fthealth.HealthResult {
 	checks := []fthealth.Check{}
 	for _, service := range hch.registry.Services() {
 		checks = append(checks, NewCocoServiceHealthCheck(service, hch.checker))
 	}
-	return checks
+	return fthealth.RunCheck(hch.name, hch.description, true, checks...)
 }
 
 func (hch *hchandlers) jsonHandler(w http.ResponseWriter, r *http.Request) {
-	health := fthealth.RunCheck(hch.name, hch.description, true, hch.checks()...)
+	health := hch.result()
 
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
@@ -63,7 +63,7 @@ func (hch *hchandlers) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	serviceHtmlTemplate := "<dd>- <a href=\"%s\">%s</a>  : %s</dd>"
 	servicesHtml := ""
 
-	checkResult := fthealth.RunCheck(hch.name, hch.description, true, hch.checks()...)
+	checkResult := hch.result()
 	for _, check := range checkResult.Checks {
 		serviceHealthUrl := fmt.Sprintf("/health/%s/__health", check.Name)
 		if !check.Ok {

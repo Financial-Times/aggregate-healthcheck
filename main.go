@@ -38,7 +38,7 @@ func main() {
 
 	registry := NewCocoServiceRegistry(etcd, *keyPrefix, *vulcand)
 	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport, Timeout: 10 * time.Second})
-	handler := CocoAggregateHealthHandler(registry, checker)
+	handler := NewHCHandlers(registry, checker).handle
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", handler)

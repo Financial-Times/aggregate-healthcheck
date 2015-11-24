@@ -18,9 +18,11 @@ type hchandlers struct {
 }
 
 func NewHCHandlers(registry ServiceRegistry, checker ServiceHealthChecker) *hchandlers {
-	lr := make(chan fthealth.HealthResult)
-	hch := &hchandlers{registry, checker, "Coco Aggregate Healthcheck", "Checks the health of all deployed services", lr}
-	go hch.loop(lr)
+	latestRead := make(chan fthealth.HealthResult)
+	hch := &hchandlers{registry, checker, "Coco Aggregate Healthcheck", "Checks the health of all deployed services", latestRead}
+	latestWrite := make(chan fthealth.HealthResult)
+	go hch.loop(latestRead, latestWrite)
+	go maintainLatest(latestRead, latestWrite)
 	return hch
 }
 
@@ -33,31 +35,27 @@ func (hch *hchandlers) handle(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func (hch *hchandlers) loop(lr chan<- fthealth.HealthResult) {
-
-	newResult := make(chan fthealth.HealthResult)
-
-	go func() {
-		for {
-			checks := []fthealth.Check{}
-			for _, service := range hch.registry.Services() {
-				checks = append(checks, NewCocoServiceHealthCheck(service, hch.checker))
-			}
-			start := time.Now()
-			health := fthealth.RunCheck(hch.name, hch.description, true, checks...)
-			log.Printf("got new health results in %v\n", time.Now().Sub(start))
-			newResult <- health
-			time.Sleep(60 * time.Second)
+func (hch *hchandlers) loop(latestRead chan<- fthealth.HealthResult, latestWrite chan<- fthealth.HealthResult) {
+	for {
+		checks := []fthealth.Check{}
+		for _, service := range hch.registry.Services() {
+			checks = append(checks, NewCocoServiceHealthCheck(service, hch.checker))
 		}
-	}()
+		start := time.Now()
+		health := fthealth.RunCheck(hch.name, hch.description, true, checks...)
+		log.Printf("got new health results in %v\n", time.Now().Sub(start))
+		latestWrite <- health
+		time.Sleep(60 * time.Second)
+	}
+}
 
+func maintainLatest(latestRead chan<- fthealth.HealthResult, latestWrite <-chan fthealth.HealthResult) {
 	var latest fthealth.HealthResult
 	for {
 		select {
-		case latest = <-newResult:
-		case lr <- latest:
+		case latest = <-latestWrite:
+		case latestRead <- latest:
 		}
-
 	}
 }
 

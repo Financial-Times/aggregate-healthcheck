@@ -18,10 +18,22 @@ type hchandlers struct {
 }
 
 func NewHCHandlers(registry ServiceRegistry, checker ServiceHealthChecker) *hchandlers {
+	// set up channels for reading health statuses over HTTP
 	latestRead := make(chan fthealth.HealthResult)
-	hch := &hchandlers{registry, checker, "Coco Aggregate Healthcheck", "Checks the health of all deployed services", latestRead}
 	latestWrite := make(chan fthealth.HealthResult)
-	go hch.loop(latestRead, latestWrite)
+	hch := &hchandlers{registry, checker, "Coco Aggregate Healthcheck", "Checks the health of all deployed services", latestRead}
+
+	// set up channels for buffering data to be sent to Graphite
+	latestGraphiteWrite := make(chan fthealth.HealthResult)
+	latestGraphiteRead := make(chan fthealth.HealthResult, 10)
+	ring := NewRingBuffer(latestGraphiteWrite, latestGraphiteRead)
+	go ring.Run()
+
+	// start checking health and activate handlers to respond on read signals
+	graphiteTicker := time.NewTicker(time.Second)
+	graphiteFeeder := NewGraphiteFeeder("localhost", 1234)
+	go hch.loop(latestWrite, latestGraphiteWrite)
+	go graphiteFeeder.MaintainGraphiteFeed(latestGraphiteRead, graphiteTicker)
 	go maintainLatest(latestRead, latestWrite)
 	return hch
 }
@@ -32,10 +44,9 @@ func (hch *hchandlers) handle(w http.ResponseWriter, r *http.Request) {
 	} else {
 		hch.htmlHandler(w, r)
 	}
-
 }
 
-func (hch *hchandlers) loop(latestRead chan<- fthealth.HealthResult, latestWrite chan<- fthealth.HealthResult) {
+func (hch *hchandlers) loop(latestWrite chan<- fthealth.HealthResult, latestGraphite chan<- fthealth.HealthResult) {
 	for {
 		checks := []fthealth.Check{}
 		for _, service := range hch.registry.Services() {
@@ -45,6 +56,7 @@ func (hch *hchandlers) loop(latestRead chan<- fthealth.HealthResult, latestWrite
 		health := fthealth.RunCheck(hch.name, hch.description, true, checks...)
 		log.Printf("got new health results in %v\n", time.Now().Sub(start))
 		latestWrite <- health
+		latestGraphite <- health
 		time.Sleep(60 * time.Second)
 	}
 }
@@ -55,6 +67,18 @@ func maintainLatest(latestRead chan<- fthealth.HealthResult, latestWrite <-chan 
 		select {
 		case latest = <-latestWrite:
 		case latestRead <- latest:
+		}
+	}
+}
+
+func drain(ch <-chan fthealth.HealthResult) []fthealth.HealthResult {
+	var results []fthealth.HealthResult
+	for {
+		select {
+		case e := <-ch:
+			results = append(results, e)
+		default:
+			return results
 		}
 	}
 }

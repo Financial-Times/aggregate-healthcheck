@@ -24,14 +24,23 @@ func NewGraphiteFeeder(host string, port int) *GraphiteFeeder {
 	return &GraphiteFeeder{host, port, connection}
 }
 
-func (graphite GraphiteFeeder) Send(h fthealth.HealthResult) {
-	for _, check := range h.Checks {
-		//		_, err := fmt.Fprintf(graphite.connection, metricformat, check.Name, booltoint(check.Ok), time.Now().Unix())
-		msg := fmt.Sprintf(metricformat, check.Name, booltoint(check.Ok), time.Now().Unix())
-		log.Printf("DEBUG graphite metric: " + msg)
-		//		if err != nil {
-		//			log.Printf("WARN Error sending stuff to graphite: [%v]", err.Error())
-		//		}
+func (graphite GraphiteFeeder) MaintainGraphiteFeed(latestGraphiteRead <-chan fthealth.HealthResult, ticker <-chan time.Ticker) {
+	for _ := range ticker.C {
+		results := drain(latestGraphiteRead)
+		graphite.Send(results)
+	}
+}
+
+func (graphite GraphiteFeeder) Send(results []fthealth.HealthResult) {
+	for _, result := range results {
+		for _, check := range result.Checks {
+//			_, err := fmt.Fprintf(graphite.connection, metricformat, check.Name, booltoint(check.Ok), time.Now().Unix())
+			msg := fmt.Sprintf(metricformat, check.Name, booltoint(check.Ok), time.Now().Unix())
+			log.Printf("DEBUG graphite metric: " + msg)
+//			if err != nil {
+//				log.Printf("WARN Error sending stuff to graphite: [%v]", err.Error())
+//			}
+		}
 	}
 }
 

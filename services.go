@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/coreos/go-etcd/etcd"
+	"github.com/coreos/etcd/client"
+	"golang.org/x/net/context"
 	"log"
 	"strings"
 )
@@ -18,13 +19,13 @@ type Service struct {
 }
 
 type CocoServiceRegistry struct {
-	etcd        *etcd.Client
+	kapi        client.KeysAPI
 	keyPrefix   string
 	vulcandAddr string
 }
 
 func (r *CocoServiceRegistry) Services() []Service {
-	resp, err := r.etcd.Get(r.keyPrefix, true, true)
+	resp, err := r.kapi.Get(context.Background(), r.keyPrefix, &client.GetOptions{Sort: true})
 	if err != nil {
 		panic(err.Error())
 	}
@@ -32,7 +33,7 @@ func (r *CocoServiceRegistry) Services() []Service {
 	services := []Service{}
 	for _, service := range resp.Node.Nodes {
 		log.Printf("INFO Service: %s", service)
-		resp, err := r.etcd.Get(service.Key, false, false)
+		resp, err := r.kapi.Get(context.Background(), service.Key, nil)
 		if err == nil {
 			name := strings.TrimPrefix(service.Key, r.keyPrefix)
 			healthcheck := fmt.Sprintf("/health/%s%s", name, resp.Node.Value)
@@ -44,6 +45,6 @@ func (r *CocoServiceRegistry) Services() []Service {
 	return services
 }
 
-func NewCocoServiceRegistry(etcd *etcd.Client, keyPrefix, vulcandAddr string) *CocoServiceRegistry {
-	return &CocoServiceRegistry{etcd: etcd, keyPrefix: keyPrefix, vulcandAddr: vulcandAddr}
+func NewCocoServiceRegistry(kapi client.KeysAPI, keyPrefix, vulcandAddr string) *CocoServiceRegistry {
+	return &CocoServiceRegistry{kapi: kapi, keyPrefix: keyPrefix, vulcandAddr: vulcandAddr}
 }

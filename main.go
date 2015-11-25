@@ -2,10 +2,11 @@ package main
 
 import (
 	"flag"
-	"github.com/coreos/go-etcd/etcd"
+	"github.com/coreos/etcd/client"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"golang.org/x/net/proxy"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -33,10 +34,19 @@ func main() {
 		*keyPrefix = *keyPrefix + "/"
 	}
 
-	etcd := etcd.NewClient(strings.Split(*etcdPeers, ","))
-	etcd.SetTransport(transport)
+	cfg := client.Config{
+		Endpoints:               strings.Split(*etcdPeers, ","),
+		Transport:               transport,
+		HeaderTimeoutPerRequest: 10 * time.Second,
+	}
 
-	registry := NewCocoServiceRegistry(etcd, *keyPrefix, *vulcand)
+	etcd, err := client.New(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	kapi := client.NewKeysAPI(etcd)
+
+	registry := NewCocoServiceRegistry(kapi, *keyPrefix, *vulcand)
 	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport, Timeout: 10 * time.Second})
 	handler := NewHCHandlers(registry, checker).handle
 
@@ -44,7 +54,7 @@ func main() {
 	r.HandleFunc("/", handler)
 	r.HandleFunc("/__health", handler)
 
-	err := http.ListenAndServe(":8080", handlers.LoggingHandler(os.Stdout, r))
+	err = http.ListenAndServe(":8080", handlers.LoggingHandler(os.Stdout, r))
 	if err != nil {
 		panic(err)
 	}

@@ -1,11 +1,11 @@
 package main
 
 type RingBuffer struct {
-	inputChannel  <-chan int
-	outputChannel chan int
+	inputChannel  <-chan *HealthTimed
+	outputChannel chan *HealthTimed
 }
 
-func NewRingBuffer(inputChannel <-chan int, outputChannel chan int) *RingBuffer {
+func NewRingBuffer(inputChannel <-chan *HealthTimed, outputChannel chan *HealthTimed) *RingBuffer {
 	return &RingBuffer{inputChannel, outputChannel}
 }
 

@@ -24,13 +24,13 @@ func NewHCHandlers(registry ServiceRegistry, checker ServiceHealthChecker) *hcha
 	hch := &hchandlers{registry, checker, "Coco Aggregate Healthcheck", "Checks the health of all deployed services", latestRead}
 
 	// set up channels for buffering data to be sent to Graphite
-	latestGraphiteWrite := make(chan fthealth.HealthResult)
-	latestGraphiteRead := make(chan fthealth.HealthResult, 10)
+	latestGraphiteWrite := make(chan *HealthTimed)
+	latestGraphiteRead := make(chan *HealthTimed, 10)
 	ring := NewRingBuffer(latestGraphiteWrite, latestGraphiteRead)
 	go ring.Run()
 
 	// start checking health and activate handlers to respond on read signals
-	graphiteTicker := time.NewTicker(time.Second)
+	graphiteTicker := time.NewTicker(5 * time.Second)
 	graphiteFeeder := NewGraphiteFeeder("localhost", 1234)
 	go hch.loop(latestWrite, latestGraphiteWrite)
 	go graphiteFeeder.MaintainGraphiteFeed(latestGraphiteRead, graphiteTicker)
@@ -46,7 +46,7 @@ func (hch *hchandlers) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (hch *hchandlers) loop(latestWrite chan<- fthealth.HealthResult, latestGraphite chan<- fthealth.HealthResult) {
+func (hch *hchandlers) loop(latestWrite chan<- fthealth.HealthResult, latestGraphite chan<- *HealthTimed) {
 	for {
 		checks := []fthealth.Check{}
 		for _, service := range hch.registry.Services() {
@@ -54,9 +54,10 @@ func (hch *hchandlers) loop(latestWrite chan<- fthealth.HealthResult, latestGrap
 		}
 		start := time.Now()
 		health := fthealth.RunCheck(hch.name, hch.description, true, checks...)
-		log.Printf("got new health results in %v\n", time.Now().Sub(start))
+		now := time.Now()
+		log.Printf("got new health results in %v\n", now.Sub(start))
 		latestWrite <- health
-		latestGraphite <- health
+		latestGraphite <- NewHealthTimed(health, now)
 		time.Sleep(60 * time.Second)
 	}
 }
@@ -67,18 +68,6 @@ func maintainLatest(latestRead chan<- fthealth.HealthResult, latestWrite <-chan 
 		select {
 		case latest = <-latestWrite:
 		case latestRead <- latest:
-		}
-	}
-}
-
-func drain(ch <-chan fthealth.HealthResult) []fthealth.HealthResult {
-	var results []fthealth.HealthResult
-	for {
-		select {
-		case e := <-ch:
-			results = append(results, e)
-		default:
-			return results
 		}
 	}
 }

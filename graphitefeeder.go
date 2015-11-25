@@ -1,7 +1,6 @@
 package main
 
 import (
-	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 	"net"
 	"strconv"
 	"fmt"
@@ -24,22 +23,37 @@ func NewGraphiteFeeder(host string, port int) *GraphiteFeeder {
 	return &GraphiteFeeder{host, port, connection}
 }
 
-func (graphite GraphiteFeeder) MaintainGraphiteFeed(latestGraphiteRead <-chan fthealth.HealthResult, ticker <-chan time.Ticker) {
-	for _ := range ticker.C {
+func (graphite *GraphiteFeeder) MaintainGraphiteFeed(latestGraphiteRead <-chan *HealthTimed, ticker *time.Ticker) {
+	for range ticker.C {
 		results := drain(latestGraphiteRead)
 		graphite.Send(results)
 	}
 }
 
-func (graphite GraphiteFeeder) Send(results []fthealth.HealthResult) {
+func (graphite *GraphiteFeeder) Send(results []*HealthTimed) {
+	log.Printf("DEBUG graphite metric: Sending batch with %v result sets.", len(results))
 	for _, result := range results {
-		for _, check := range result.Checks {
-//			_, err := fmt.Fprintf(graphite.connection, metricformat, check.Name, booltoint(check.Ok), time.Now().Unix())
-			msg := fmt.Sprintf(metricformat, check.Name, booltoint(check.Ok), time.Now().Unix())
+		log.Printf("DEBUG graphite metric: Sending a result set")
+		time := result.time
+		for _, check := range result.healthResult.Checks {
+//			_, err := fmt.Fprintf(graphite.connection, metricformat, check.Name, booltoint(check.Ok), time.Unix())
+			msg := fmt.Sprintf(metricformat, check.Name, booltoint(check.Ok), time.Unix())
 			log.Printf("DEBUG graphite metric: " + msg)
 //			if err != nil {
 //				log.Printf("WARN Error sending stuff to graphite: [%v]", err.Error())
 //			}
+		}
+	}
+}
+
+func drain(ch <-chan *HealthTimed) []*HealthTimed {
+	var results []*HealthTimed
+	for {
+		select {
+		case p := <-ch:
+			results = append(results, p)
+		default:
+			return results
 		}
 	}
 }

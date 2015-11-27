@@ -13,6 +13,9 @@ RUN apk --update add go git\
 ENV ETCD_PEERS http://localhost:4001
 ENV KEY_PREFIX /services
 ENV VULCAND_ADDRESS localhost:8080
+ENV GRAPHITE_HOST graphite.ft.com
+ENV GRAPHITE_PORT 2003
+ENV ENVIRONMENT local
 
 EXPOSE 8080
 
@@ -20,5 +23,7 @@ CMD /coco-aggregate-healthcheck \
 	--etcd-peers "$ETCD_PEERS" \
 	--key-prefix "$KEY_PREFIX" \
 	--vulcand "$VULCAND_ADDRESS" \
-	--socks-proxy "$SOCKS_PROXY"
-
+	--socks-proxy "$SOCKS_PROXY" \
+    --graphite-host "$GRAPHITE_HOST" \
+    --graphite-port "$GRAPHITE_PORT" \
+    --environment "$ENVIRONMENT"

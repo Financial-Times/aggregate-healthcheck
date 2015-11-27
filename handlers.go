@@ -10,18 +10,19 @@ import (
 )
 
 type hchandlers struct {
-	registry     ServiceRegistry
-	checker      ServiceHealthChecker
-	name         string
-	description  string
-	latestResult <-chan fthealth.HealthResult
+	registry       ServiceRegistry
+	checker        ServiceHealthChecker
+	name           string
+	description    string
+	latestResult   <-chan fthealth.HealthResult
+	graphiteFeeder *GraphiteFeeder
 }
 
-func NewHCHandlers(registry ServiceRegistry, checker ServiceHealthChecker) *hchandlers {
+func NewHCHandlers(registry ServiceRegistry, checker ServiceHealthChecker, graphiteFeeder *GraphiteFeeder) *hchandlers {
 	// set up channels for reading health statuses over HTTP
 	latestRead := make(chan fthealth.HealthResult)
 	latestWrite := make(chan fthealth.HealthResult)
-	hch := &hchandlers{registry, checker, "Coco Aggregate Healthcheck", "Checks the health of all deployed services", latestRead}
+	hch := &hchandlers{registry, checker, "Coco Aggregate Healthcheck", "Checks the health of all deployed services", latestRead, graphiteFeeder}
 
 	// set up channels for buffering data to be sent to Graphite
 	latestGraphiteWrite := make(chan *HealthTimed)
@@ -30,8 +31,8 @@ func NewHCHandlers(registry ServiceRegistry, checker ServiceHealthChecker) *hcha
 	go ring.Run()
 
 	// start checking health and activate handlers to respond on read signals
-	graphiteTicker := time.NewTicker(5 * time.Second)
-	graphiteFeeder := NewGraphiteFeeder("localhost", 1234)
+	graphiteTicker := time.NewTicker(79 * time.Second)
+
 	go hch.loop(latestWrite, latestGraphiteWrite)
 	go graphiteFeeder.MaintainGraphiteFeed(latestGraphiteRead, graphiteTicker)
 	go maintainLatest(latestRead, latestWrite)

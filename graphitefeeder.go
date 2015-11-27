@@ -6,21 +6,23 @@ import (
 	"fmt"
 	"time"
 	"log"
+	"strings"
 )
 
 type GraphiteFeeder struct {
-	host       string
-	port       int
-	connection net.Conn
+	host        string
+	port        int
+	environment string
+	connection  net.Conn
 }
 
-const prefix = "content.health.%s"
+const prefix = "coco.health.%s.%s"
 const suffix = " %d %d\n"
-const metricformat = prefix + "." + suffix
+const metricformat = prefix + suffix
 
-func NewGraphiteFeeder(host string, port int) *GraphiteFeeder {
+func NewGraphiteFeeder(host string, port int, environment string) *GraphiteFeeder {
 	connection, _ := net.Dial("tcp", host+":"+strconv.Itoa(port))
-	return &GraphiteFeeder{host, port, connection}
+	return &GraphiteFeeder{host, port, environment, connection}
 }
 
 func (graphite *GraphiteFeeder) MaintainGraphiteFeed(latestGraphiteRead <-chan *HealthTimed, ticker *time.Ticker) {
@@ -31,17 +33,17 @@ func (graphite *GraphiteFeeder) MaintainGraphiteFeed(latestGraphiteRead <-chan *
 }
 
 func (graphite *GraphiteFeeder) Send(results []*HealthTimed) {
-	log.Printf("DEBUG graphite metric: Sending batch with %v result sets.", len(results))
+	log.Printf("INFO graphite metric: Sending batch with %v result sets.", len(results))
 	for _, result := range results {
-		log.Printf("DEBUG graphite metric: Sending a result set")
+		checks := result.healthResult.Checks
 		time := result.time
-		for _, check := range result.healthResult.Checks {
-//			_, err := fmt.Fprintf(graphite.connection, metricformat, check.Name, booltoint(check.Ok), time.Unix())
-			msg := fmt.Sprintf(metricformat, check.Name, booltoint(check.Ok), time.Unix())
-			log.Printf("DEBUG graphite metric: " + msg)
-//			if err != nil {
-//				log.Printf("WARN Error sending stuff to graphite: [%v]", err.Error())
-//			}
+		log.Printf("INFO graphite metric: Sending a result set of %v services for time point %v.", len(checks), time)
+		for _, check := range checks {
+			name := strings.Replace(check.Name, ".", "-", -1)
+			_, err := fmt.Fprintf(graphite.connection, metricformat, graphite.environment, name, booltoint(check.Ok), time.Unix())
+			if err != nil {
+				log.Printf("WARN Error sending stuff to graphite: [%v]", err.Error())
+			}
 		}
 	}
 }

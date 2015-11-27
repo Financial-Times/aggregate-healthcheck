@@ -52,7 +52,7 @@ func main() {
 	registry := NewCocoServiceRegistry(kapi, *keyPrefix, *vulcand)
 	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport, Timeout: 10 * time.Second})
 	graphiteFeeder := NewGraphiteFeeder(*graphiteHost, *graphitePort, *environment)
-	handler := NewHCHandlers(registry, checker, graphiteFeeder).handle
+	handler := NewHCHandlers(registry, checker, graphiteFeeder, kapi).handle
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", handler)

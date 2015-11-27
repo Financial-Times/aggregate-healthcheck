@@ -48,7 +48,7 @@ func main() {
 
 	registry := NewCocoServiceRegistry(kapi, *keyPrefix, *vulcand)
 	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport, Timeout: 10 * time.Second})
-	handler := NewHCHandlers(registry, checker).handle
+	handler := NewHCHandlers(registry, checker, kapi).handle
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", handler)

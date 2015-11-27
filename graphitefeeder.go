@@ -40,7 +40,7 @@ func (graphite *GraphiteFeeder) Send(results []*HealthTimed) {
 		log.Printf("INFO graphite metric: Sending a result set of %v services for time point %v.", len(checks), time)
 		for _, check := range checks {
 			name := strings.Replace(check.Name, ".", "-", -1)
-			_, err := fmt.Fprintf(graphite.connection, metricformat, graphite.environment, name, booltoint(check.Ok), time.Unix())
+			_, err := fmt.Fprintf(graphite.connection, metricformat, graphite.environment, name, inverseBoolToInt(check.Ok), time.Unix())
 			if err != nil {
 				log.Printf("WARN Error sending stuff to graphite: [%v]", err.Error())
 			}
@@ -60,9 +60,9 @@ func drain(ch <-chan *HealthTimed) []*HealthTimed {
 	}
 }
 
-func booltoint(b bool) int {
+func inverseBoolToInt(b bool) int {
 	if b {
-		return 1
+		return 0
 	}
-	return 0
+	return 1
 }

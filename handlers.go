@@ -47,7 +47,7 @@ func NewHCHandlers(registry ServiceRegistry, checker ServiceHealthChecker, graph
 
 	go hch.loop(latestWrite, latestGraphiteWrite)
 	go hch.maintainDelayPeriod()
-	go graphiteFeeder.MaintainGraphiteFeed(latestGraphiteRead, graphiteTicker)
+	go graphiteFeeder.maintainGraphiteFeed(latestGraphiteRead, graphiteTicker)
 	go maintainLatest(latestRead, latestWrite)
 	return hch
 }

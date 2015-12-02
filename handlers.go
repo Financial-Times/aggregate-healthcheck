@@ -34,7 +34,7 @@ func NewHCHandlers(registry ServiceRegistry, checker ServiceHealthChecker, graph
 	graphiteTicker := time.NewTicker(79 * time.Second)
 
 	go hch.loop(latestWrite, latestGraphiteWrite)
-	go graphiteFeeder.MaintainGraphiteFeed(latestGraphiteRead, graphiteTicker)
+	go graphiteFeeder.maintainGraphiteFeed(latestGraphiteRead, graphiteTicker)
 	go maintainLatest(latestRead, latestWrite)
 	return hch
 }

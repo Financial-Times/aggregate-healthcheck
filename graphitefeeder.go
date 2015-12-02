@@ -16,23 +16,21 @@ type GraphiteFeeder struct {
 	connection  net.Conn
 }
 
-const prefix = "coco.health.%s.%s"
-const suffix = " %d %d\n"
-const metricformat = prefix + suffix
+const metricFormat = "coco.health.%s.%s %d %d\n"
 
 func NewGraphiteFeeder(host string, port int, environment string) *GraphiteFeeder {
 	connection, _ := net.Dial("tcp", host+":"+strconv.Itoa(port))
 	return &GraphiteFeeder{host, port, environment, connection}
 }
 
-func (graphite *GraphiteFeeder) MaintainGraphiteFeed(latestGraphiteRead <-chan *HealthTimed, ticker *time.Ticker) {
+func (graphite *GraphiteFeeder) maintainGraphiteFeed(latestGraphiteRead <-chan *HealthTimed, ticker *time.Ticker) {
 	for range ticker.C {
 		results := drain(latestGraphiteRead)
-		graphite.Send(results)
+		graphite.send(results)
 	}
 }
 
-func (graphite *GraphiteFeeder) Send(results []*HealthTimed) {
+func (graphite *GraphiteFeeder) send(results []*HealthTimed) {
 	log.Printf("INFO graphite metric: Sending batch with %v result sets.", len(results))
 	for _, result := range results {
 		checks := result.healthResult.Checks
@@ -40,7 +38,7 @@ func (graphite *GraphiteFeeder) Send(results []*HealthTimed) {
 		log.Printf("INFO graphite metric: Sending a result set of %v services for time point %v.", len(checks), time)
 		for _, check := range checks {
 			name := strings.Replace(check.Name, ".", "-", -1)
-			_, err := fmt.Fprintf(graphite.connection, metricformat, graphite.environment, name, inverseBoolToInt(check.Ok), time.Unix())
+			_, err := fmt.Fprintf(graphite.connection, metricFormat, graphite.environment, name, inverseBoolToInt(check.Ok), time.Unix())
 			if err != nil {
 				log.Printf("WARN Error sending stuff to graphite: [%v]", err.Error())
 			}

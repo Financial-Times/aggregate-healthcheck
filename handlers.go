@@ -37,17 +37,14 @@ func NewHCHandlers(registry ServiceRegistry, checker ServiceHealthChecker, graph
 		latestRead, graphiteFeeder, kapi, hcPeriod}
 
 	// set up channels for buffering data to be sent to Graphite
-	latestGraphiteWrite := make(chan *HealthTimed)
-	latestGraphiteRead := make(chan *HealthTimed, 10)
-	ring := NewRingBuffer(latestGraphiteWrite, latestGraphiteRead)
-	go ring.Run()
+	bufferGraphite := make(chan *HealthTimed, 10)
 
 	// start checking health and activate handlers to respond on read signals
 	graphiteTicker := time.NewTicker(79 * time.Second)
 
-	go hch.loop(latestWrite, latestGraphiteWrite)
+	go hch.loop(latestWrite, bufferGraphite)
 	go hch.maintainDelayPeriod()
-	go graphiteFeeder.maintainGraphiteFeed(latestGraphiteRead, graphiteTicker)
+	go graphiteFeeder.maintainGraphiteFeed(bufferGraphite, graphiteTicker)
 	go maintainLatest(latestRead, latestWrite)
 	return hch
 }
@@ -60,7 +57,7 @@ func (hch *hchandlers) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (hch *hchandlers) loop(latestWrite chan<- fthealth.HealthResult, latestGraphite chan<- *HealthTimed) {
+func (hch *hchandlers) loop(latestWrite chan<- fthealth.HealthResult, bufferGraphite chan<- *HealthTimed) {
 
 	// get initial period
 	period := <-hch.hcPeriod
@@ -80,7 +77,10 @@ func (hch *hchandlers) loop(latestWrite chan<- fthealth.HealthResult, latestGrap
 			now := time.Now()
 			log.Printf("got new health results in %v\n", now.Sub(start))
 			latestWrite <- health
-			latestGraphite <- NewHealthTimed(health, now)
+			select {
+			case bufferGraphite <- NewHealthTimed(health, now):
+			default:
+			}
 		case period = <-hch.hcPeriod:
 			log.Printf("updated health check period to %v\n", period)
 		}

@@ -23,9 +23,9 @@ func NewGraphiteFeeder(host string, port int, environment string) *GraphiteFeede
 	return &GraphiteFeeder{host, port, environment, connection}
 }
 
-func (graphite *GraphiteFeeder) maintainGraphiteFeed(latestGraphiteRead <-chan *HealthTimed, ticker *time.Ticker) {
+func (graphite *GraphiteFeeder) maintainGraphiteFeed(bufferGraphite <-chan *HealthTimed, ticker *time.Ticker) {
 	for range ticker.C {
-		results := drain(latestGraphiteRead)
+		results := drain(bufferGraphite)
 		graphite.send(results)
 	}
 }

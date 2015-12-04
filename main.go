@@ -15,10 +15,13 @@ import (
 
 func main() {
 	var (
-		socksProxy = flag.String("socks-proxy", "", "Use specified SOCKS proxy (e.g. localhost:2323)")
-		etcdPeers  = flag.String("etcd-peers", "http://localhost:4001", "Comma-separated list of addresses of etcd endpoints to connect to")
-		keyPrefix  = flag.String("key-prefix", "/ft/healthcheck/", "Key prefix to list of services in etcd")
-		vulcand    = flag.String("vulcand", "localhost:8080", "Vulcand address")
+		socksProxy   = flag.String("socks-proxy", "", "Use specified SOCKS proxy (e.g. localhost:2323)")
+		etcdPeers    = flag.String("etcd-peers", "http://localhost:4001", "Comma-separated list of addresses of etcd endpoints to connect to")
+		keyPrefix    = flag.String("key-prefix", "/ft/healthcheck/", "Key prefix to list of services in etcd")
+		vulcand      = flag.String("vulcand", "localhost:8080", "Vulcand address")
+		graphiteHost = flag.String("graphite-host", "graphite.ft.com", "Graphite host address")
+		graphitePort = flag.Int("graphite-port", 2003, "Graphite port")
+		environment  = flag.String("environment", "local", "Environment tag")
 	)
 
 	flag.Parse()
@@ -48,7 +51,8 @@ func main() {
 
 	registry := NewCocoServiceRegistry(kapi, *keyPrefix, *vulcand)
 	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport, Timeout: 10 * time.Second})
-	handler := NewHCHandlers(registry, checker, kapi).handle
+	graphiteFeeder := NewGraphiteFeeder(*graphiteHost, *graphitePort, *environment)
+	handler := NewHCHandlers(registry, checker, graphiteFeeder, kapi).handle
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", handler)

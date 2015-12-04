@@ -17,11 +17,14 @@ docker run \
     --env ETCD_PEERS=http://localhost:2379 \
     --env VULCAND_ADDRESS=localhost:8080 \
     --env KEY_PREFIX=/ft/healthcheck \
+	--env="GRAPHITE_HOST=graphite.ft.com" \
+	--env="GRAPHITE_PORT=2003" \
+	--env="ENVIRONMENT=local" \
     coco/coco-aggregate-healthcheck
 ```
 
 Binary
 ```
 ssh -D 2323 -N core@$FLEETCTL_TUNNEL
-./coco-aggregate-healthcheck --socks-proxy localhost:2323 --etcd-peers "http://localhost:2379" --key-prefix "/ft/healthcheck" --vulcand "localhost:8080"
+./coco-aggregate-healthcheck --socks-proxy localhost:2323 --etcd-peers "http://localhost:2379" --key-prefix "/ft/healthcheck" --vulcand "localhost:8080" --graphite-host "graphite.ft.com" --graphite-port "2003" --environment "local"
 ```

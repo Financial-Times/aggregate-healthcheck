@@ -19,7 +19,7 @@ type GraphiteFeeder struct {
 const metricFormat = "coco.health.%s.%s %d %d\n"
 
 func NewGraphiteFeeder(host string, port int, environment string) *GraphiteFeeder {
-	connection, _ := tcpConnect(host, port)
+	connection := tcpConnect(host, port)
 	return &GraphiteFeeder{host, port, environment, connection}
 }
 
@@ -83,20 +83,20 @@ func addBack(bufferGraphite chan<- *HealthTimed, healthTimed *HealthTimed) {
 
 func (graphite *GraphiteFeeder) reconnect() {
 	log.Printf("INFO reconnecting to Graphite host.")
-	connection, _ := tcpConnect(graphite.host, graphite.port)
+	connection := tcpConnect(graphite.host, graphite.port)
 	graphite.connection = connection
 }
 
-func tcpConnect(host string, port int) (net.Conn, error) {
+func tcpConnect(host string, port int) (net.Conn) {
 	conn, err := net.Dial("tcp", host+":"+strconv.Itoa(port))
 	if err!= nil {
 		log.Printf("WARN Error while creating TCP connection [%v]", err)
-		return nil, err
+		return nil
 	}
 	tcpConn := conn.(*net.TCPConn)
 	tcpConn.SetKeepAlive(true)
 	tcpConn.SetKeepAlivePeriod(30 * time.Minute)
-	return conn, nil
+	return conn
 }
 
 func inverseBoolToInt(b bool) int {

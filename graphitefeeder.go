@@ -19,7 +19,7 @@ type GraphiteFeeder struct {
 const metricFormat = "coco.health.%s.%s %d %d\n"
 
 func NewGraphiteFeeder(host string, port int, environment string) *GraphiteFeeder {
-	connection, _ := connect(host, port)
+	connection, _ := tcpConnect(host, port)
 	return &GraphiteFeeder{host, port, environment, connection}
 }
 
@@ -27,10 +27,7 @@ func (graphite *GraphiteFeeder) maintainGraphiteFeed(bufferGraphite chan *Health
 	for range ticker.C {
 		err := graphite.sendBuffer(bufferGraphite)
 		if (err != nil) {
-			if (strings.Contains(err.Error(), "broken pipe")) {
-				graphite.connection.Close()
-				graphite.reconnect()
-			}
+			graphite.reconnect()
 		}
 	}
 }
@@ -72,15 +69,26 @@ func addBack(bufferGraphite chan<- *HealthTimed, healthTimed *HealthTimed) {
 	}
 }
 
-func connect(host string, port int) (net.Conn, error) {
-	connection, err := net.Dial("tcp", host+":"+strconv.Itoa(port))
-	return connection, err
-}
-
 func (graphite *GraphiteFeeder) reconnect() {
 	log.Printf("INFO reconnecting to Graphite host.")
-	connection, _ := connect(graphite.host, graphite.port)
+	connection, _ := tcpConnect(graphite.host, graphite.port)
 	graphite.connection = connection
+}
+
+func tcpConnect(host string, port int) (net.Conn, error) {
+	tcpAddr, err := net.ResolveTCPAddr("tcp", host+":"+strconv.Itoa(port))
+	if err != nil {
+		log.Printf("WARN Error while resolving TCP address [%v]", err.Error())
+		return nil, err
+	}
+	conn, err2 := net.DialTCP("tcp", nil, tcpAddr)
+	if err2 != nil {
+		log.Printf("WARN Error while creating TCP connection [%v]", err.Error())
+		return nil, err2
+	}
+	conn.SetKeepAlive(true)
+	conn.SetKeepAlivePeriod(30 * time.Minute)
+	return conn, nil
 }
 
 func inverseBoolToInt(b bool) int {

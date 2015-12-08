@@ -88,15 +88,10 @@ func (graphite *GraphiteFeeder) reconnect() {
 }
 
 func tcpConnect(host string, port int) (net.Conn, error) {
-	tcpAddr, err := net.ResolveTCPAddr("tcp", host+":"+strconv.Itoa(port))
-	if err != nil {
-		log.Printf("WARN Error while resolving TCP address [%v]", err.Error())
+	conn, err := net.Dial("tcp", host+":"+strconv.Itoa(port)).(net.TCPConn)
+	if err!= nil {
+		log.Printf("WARN Error while creating TCP connection [%v]", err)
 		return nil, err
-	}
-	conn, err2 := net.DialTCP("tcp", nil, tcpAddr)
-	if err2 != nil {
-		log.Printf("WARN Error while creating TCP connection [%v]", err.Error())
-		return nil, err2
 	}
 	conn.SetKeepAlive(true)
 	conn.SetKeepAlivePeriod(30 * time.Minute)

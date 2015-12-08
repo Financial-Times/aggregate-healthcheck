@@ -25,9 +25,9 @@ func NewGraphiteFeeder(host string, port int, environment string) *GraphiteFeede
 
 func (graphite *GraphiteFeeder) maintainGraphiteFeed(bufferGraphite chan *HealthTimed, ticker *time.Ticker) {
 	for range ticker.C {
-		err1 := graphite.sendPilotLight()
-		err := graphite.sendBuffer(bufferGraphite)
-		if (err1 != nil || err != nil) {
+		errPilot := graphite.sendPilotLight()
+		errBuff := graphite.sendBuffer(bufferGraphite)
+		if (errPilot != nil || errBuff != nil) {
 			graphite.reconnect()
 		}
 	}

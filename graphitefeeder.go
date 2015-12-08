@@ -25,8 +25,9 @@ func NewGraphiteFeeder(host string, port int, environment string) *GraphiteFeede
 
 func (graphite *GraphiteFeeder) maintainGraphiteFeed(bufferGraphite chan *HealthTimed, ticker *time.Ticker) {
 	for range ticker.C {
+		err1 := graphite.sendPilotLight()
 		err := graphite.sendBuffer(bufferGraphite)
-		if (err != nil) {
+		if (err1 != nil || err != nil) {
 			graphite.reconnect()
 		}
 	}
@@ -47,12 +48,23 @@ func (graphite *GraphiteFeeder) sendBuffer(bufferGraphite chan *HealthTimed) err
 	}
 }
 
+func (graphite *GraphiteFeeder) sendPilotLight() error {
+	log.Printf("DEBUG " + metricFormat, graphite.environment, "pilot-light", 1, time.Now().Unix())
+	_, err := fmt.Fprintf(graphite.connection, metricFormat, graphite.environment, "pilot-light", 1, time.Now().Unix())
+	if err != nil {
+		log.Printf("WARN Error sending pilot-light signal to graphite: [%v]", err.Error())
+		return err
+	}
+	return nil
+}
+
 func (graphite *GraphiteFeeder) sendOne(result *HealthTimed) error {
 	checks := result.healthResult.Checks
 	time := result.time
 	log.Printf("INFO graphite metric: Sending a result set of %v services for time point %v.", len(checks), time)
 	for _, check := range checks {
 		name := strings.Replace(check.Name, ".", "-", -1)
+		log.Printf("DEBUG " + metricFormat, graphite.environment, name, inverseBoolToInt(check.Ok), time.Unix())
 		_, err := fmt.Fprintf(graphite.connection, metricFormat, graphite.environment, name, inverseBoolToInt(check.Ok), time.Unix())
 		if err != nil {
 			log.Printf("WARN Error sending stuff to graphite: [%v]", err.Error())

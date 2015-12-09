@@ -16,7 +16,8 @@ type GraphiteFeeder struct {
 	connection  net.Conn
 }
 
-const metricFormat = "coco.health.%s.%s %d %d\n"
+const pilotLightFormat = "coco.health.%s.pilot-light 1 %d\n"
+const metricFormat = "coco.health.%s.services.%s %d %d\n"
 
 func NewGraphiteFeeder(host string, port int, environment string) *GraphiteFeeder {
 	connection := tcpConnect(host, port)
@@ -49,8 +50,8 @@ func (graphite *GraphiteFeeder) sendBuffer(bufferGraphite chan *HealthTimed) err
 }
 
 func (graphite *GraphiteFeeder) sendPilotLight() error {
-	log.Printf("DEBUG " + metricFormat, graphite.environment, "pilot-light", 1, time.Now().Unix())
-	_, err := fmt.Fprintf(graphite.connection, metricFormat, graphite.environment, "pilot-light", 1, time.Now().Unix())
+	log.Printf("DEBUG " + pilotLightFormat, graphite.environment, time.Now().Unix())
+	_, err := fmt.Fprintf(graphite.connection, pilotLightFormat, graphite.environment, time.Now().Unix())
 	if err != nil {
 		log.Printf("WARN Error sending pilot-light signal to graphite: [%v]", err.Error())
 		return err
@@ -83,6 +84,7 @@ func addBack(bufferGraphite chan<- *HealthTimed, healthTimed *HealthTimed) {
 
 func (graphite *GraphiteFeeder) reconnect() {
 	log.Printf("INFO reconnecting to Graphite host.")
+	graphite.connection.Close()
 	connection := tcpConnect(graphite.host, graphite.port)
 	graphite.connection = connection
 }

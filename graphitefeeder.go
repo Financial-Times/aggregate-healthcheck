@@ -50,7 +50,10 @@ func (graphite *GraphiteFeeder) sendBuffer(bufferGraphite chan *HealthTimed) err
 }
 
 func (graphite *GraphiteFeeder) sendPilotLight() error {
-	log.Printf("DEBUG " + pilotLightFormat, graphite.environment, time.Now().Unix())
+	if graphite.connection == nil {
+		return errors.New("No graphite connection")
+	}
+	log.Printf("DEBUG "+pilotLightFormat, graphite.environment, time.Now().Unix())
 	_, err := fmt.Fprintf(graphite.connection, pilotLightFormat, graphite.environment, time.Now().Unix())
 	if err != nil {
 		log.Printf("WARN Error sending pilot-light signal to graphite: [%v]", err.Error())

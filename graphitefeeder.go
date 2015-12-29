@@ -1,12 +1,13 @@
 package main
 
 import (
+	"errors"
+	"fmt"
+	"log"
 	"net"
 	"strconv"
-	"fmt"
-	"time"
-	"log"
 	"strings"
+	"time"
 )
 
 type GraphiteFeeder struct {
@@ -28,7 +29,7 @@ func (graphite *GraphiteFeeder) maintainGraphiteFeed(bufferGraphite chan *Health
 	for range ticker.C {
 		errPilot := graphite.sendPilotLight()
 		errBuff := graphite.sendBuffer(bufferGraphite)
-		if (errPilot != nil || errBuff != nil) {
+		if errPilot != nil || errBuff != nil {
 			graphite.reconnect()
 		}
 	}
@@ -39,7 +40,7 @@ func (graphite *GraphiteFeeder) sendBuffer(bufferGraphite chan *HealthTimed) err
 		select {
 		case healthTimed := <-bufferGraphite:
 			err := graphite.sendOne(healthTimed)
-			if (err != nil) {
+			if err != nil {
 				addBack(bufferGraphite, healthTimed)
 				return err
 			}
@@ -68,7 +69,7 @@ func (graphite *GraphiteFeeder) sendOne(result *HealthTimed) error {
 	log.Printf("INFO graphite metric: Sending a result set of %v services for time point %v.", len(checks), time)
 	for _, check := range checks {
 		name := strings.Replace(check.Name, ".", "-", -1)
-		log.Printf("DEBUG " + metricFormat, graphite.environment, name, inverseBoolToInt(check.Ok), time.Unix())
+		log.Printf("DEBUG "+metricFormat, graphite.environment, name, inverseBoolToInt(check.Ok), time.Unix())
 		_, err := fmt.Fprintf(graphite.connection, metricFormat, graphite.environment, name, inverseBoolToInt(check.Ok), time.Unix())
 		if err != nil {
 			log.Printf("WARN Error sending stuff to graphite: [%v]", err.Error())
@@ -92,9 +93,9 @@ func (graphite *GraphiteFeeder) reconnect() {
 	graphite.connection = connection
 }
 
-func tcpConnect(host string, port int) (net.Conn) {
+func tcpConnect(host string, port int) net.Conn {
 	conn, err := net.Dial("tcp", host+":"+strconv.Itoa(port))
-	if err!= nil {
+	if err != nil {
 		log.Printf("WARN Error while creating TCP connection [%v]", err)
 		return nil
 	}

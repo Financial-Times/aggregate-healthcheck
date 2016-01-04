@@ -75,14 +75,14 @@ func (hch *hchandlers) loop(latestWrite chan<- fthealth.HealthResult, bufferGrap
 			start := time.Now()
 			health := fthealth.RunCheck(hch.name, hch.description, true, checks...)
 			now := time.Now()
-			log.Printf("got new health results in %v\n", now.Sub(start))
+			log.Printf("INFO got new health results in %v\n", now.Sub(start))
 			latestWrite <- health
 			select {
 			case bufferGraphite <- NewHealthTimed(health, now):
 			default:
 			}
 		case period = <-hch.hcPeriod:
-			log.Printf("updated health check period to %v\n", period)
+			log.Printf("INFO updated health check period to %v\n", period)
 		}
 
 		timer = time.NewTimer(period)

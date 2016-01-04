@@ -52,7 +52,9 @@ func (graphite *GraphiteFeeder) sendBuffer(bufferGraphite chan *HealthTimed) err
 
 func (graphite *GraphiteFeeder) sendPilotLight() error {
 	if graphite.connection == nil {
-		return errors.New("No graphite connection")
+		msg := "WARN Can't send pilot light, no Graphite connection."
+		log.Printf(msg)
+		return errors.New(msg)
 	}
 	log.Printf("DEBUG "+pilotLightFormat, graphite.environment, time.Now().Unix())
 	_, err := fmt.Fprintf(graphite.connection, pilotLightFormat, graphite.environment, time.Now().Unix())
@@ -64,6 +66,11 @@ func (graphite *GraphiteFeeder) sendPilotLight() error {
 }
 
 func (graphite *GraphiteFeeder) sendOne(result *HealthTimed) error {
+	if graphite.connection == nil {
+		msg := "WARN Can't send results, no Graphite connection."
+		log.Printf(msg)
+		return errors.New(msg)
+	}
 	checks := result.healthResult.Checks
 	time := result.time
 	log.Printf("INFO graphite metric: Sending a result set of %v services for time point %v.", len(checks), time)
@@ -72,7 +79,7 @@ func (graphite *GraphiteFeeder) sendOne(result *HealthTimed) error {
 		log.Printf("DEBUG "+metricFormat, graphite.environment, name, inverseBoolToInt(check.Ok), time.Unix())
 		_, err := fmt.Fprintf(graphite.connection, metricFormat, graphite.environment, name, inverseBoolToInt(check.Ok), time.Unix())
 		if err != nil {
-			log.Printf("WARN Error sending stuff to graphite: [%v]", err.Error())
+			log.Printf("WARN Error sending results to graphite: [%v]", err.Error())
 			return err
 		}
 	}
@@ -88,14 +95,15 @@ func addBack(bufferGraphite chan<- *HealthTimed, healthTimed *HealthTimed) {
 
 func (graphite *GraphiteFeeder) reconnect() {
 	log.Printf("INFO reconnecting to Graphite host.")
-	graphite.connection.Close()
-	connection := tcpConnect(graphite.host, graphite.port)
-	graphite.connection = connection
+	if graphite.connection != nil {
+		graphite.connection.Close()
+	}
+	graphite.connection = tcpConnect(graphite.host, graphite.port)
 }
 
 func tcpConnect(host string, port int) net.Conn {
 	conn, err := net.Dial("tcp", host+":"+strconv.Itoa(port))
-	if err != nil {
+	if conn == nil || err != nil {
 		log.Printf("WARN Error while creating TCP connection [%v]", err)
 		return nil
 	}

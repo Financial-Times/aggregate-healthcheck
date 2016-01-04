@@ -29,6 +29,12 @@ func (graphite *GraphiteFeeder) maintainGraphiteFeed(bufferGraphite chan *Health
 	for range ticker.C {
 		errPilot := graphite.sendPilotLight()
 		errBuff := graphite.sendBuffer(bufferGraphite)
+		if errPilot != nil {
+			log.Printf("WARN %v", errPilot.Error())
+		}
+		if errBuff != nil {
+			log.Printf("WARN %v", errBuff.Error())
+		}
 		if errPilot != nil || errBuff != nil {
 			graphite.reconnect()
 		}
@@ -52,9 +58,7 @@ func (graphite *GraphiteFeeder) sendBuffer(bufferGraphite chan *HealthTimed) err
 
 func (graphite *GraphiteFeeder) sendPilotLight() error {
 	if graphite.connection == nil {
-		msg := "WARN Can't send pilot light, no Graphite connection."
-		log.Printf(msg)
-		return errors.New(msg)
+		return errors.New("Can't send pilot light, no Graphite connection.")
 	}
 	log.Printf("DEBUG "+pilotLightFormat, graphite.environment, time.Now().Unix())
 	_, err := fmt.Fprintf(graphite.connection, pilotLightFormat, graphite.environment, time.Now().Unix())
@@ -67,9 +71,7 @@ func (graphite *GraphiteFeeder) sendPilotLight() error {
 
 func (graphite *GraphiteFeeder) sendOne(result *HealthTimed) error {
 	if graphite.connection == nil {
-		msg := "WARN Can't send results, no Graphite connection."
-		log.Printf(msg)
-		return errors.New(msg)
+		return errors.New("Can't send results, no Graphite connection.")
 	}
 	checks := result.healthResult.Checks
 	time := result.time
@@ -103,7 +105,7 @@ func (graphite *GraphiteFeeder) reconnect() {
 
 func tcpConnect(host string, port int) net.Conn {
 	conn, err := net.Dial("tcp", host+":"+strconv.Itoa(port))
-	if conn == nil || err != nil {
+	if err != nil {
 		log.Printf("WARN Error while creating TCP connection [%v]", err)
 		return nil
 	}

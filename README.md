@@ -16,7 +16,6 @@ docker build -t coco/coco-aggregate-healthcheck .
 docker run \
     --env ETCD_PEERS=http://localhost:2379 \
     --env VULCAND_ADDRESS=localhost:8080 \
-    --env KEY_PREFIX=/ft/healthcheck \
 	--env GRAPHITE_HOST=graphite.ft.com \
 	--env GRAPHITE_PORT=2003 \
 	--env ENVIRONMENT=local \

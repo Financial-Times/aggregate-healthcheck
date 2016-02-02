@@ -8,13 +8,11 @@ import (
 	"net/http"
 	"time"
 	"github.com/coreos/etcd/client"
-	"golang.org/x/net/context"
-	"strconv"
 )
 
 type hchandlers struct {
 	registry       ServiceRegistry
-	checker        ServiceHealthChecker
+	checker        HealthChecker
 	name           string
 	description    string
 	latestResult   <-chan fthealth.HealthResult
@@ -24,17 +22,17 @@ type hchandlers struct {
 }
 
 const (
-	defaultDuration = time.Duration(60 * time.Second)
-	keyName         = "/ft/config/aggregate_healthcheck_period_seconds"
+
+
+
 )
 
-func NewHCHandlers(registry ServiceRegistry, checker ServiceHealthChecker, graphiteFeeder *GraphiteFeeder, kapi client.KeysAPI) *hchandlers {
+func NewHCHandlers(registry ServiceRegistry, checker HealthChecker, graphiteFeeder *GraphiteFeeder, kapi client.KeysAPI) *hchandlers {
 	// set up channels for reading health statuses over HTTP
-	latestRead := make(chan fthealth.HealthResult)
-	latestWrite := make(chan fthealth.HealthResult)
+
 	hcPeriod := make(chan time.Duration)
 	hch := &hchandlers{registry, checker, "Coco Aggregate Healthcheck", "Checks the health of all deployed services",
-		latestRead, graphiteFeeder, kapi, hcPeriod}
+		graphiteFeeder, kapi, hcPeriod}
 
 	// set up channels for buffering data to be sent to Graphite
 	bufferGraphite := make(chan *HealthTimed, 10)
@@ -42,10 +40,12 @@ func NewHCHandlers(registry ServiceRegistry, checker ServiceHealthChecker, graph
 	// start checking health and activate handlers to respond on read signals
 	graphiteTicker := time.NewTicker(79 * time.Second)
 
-	go hch.loop(latestWrite, bufferGraphite)
-	go hch.maintainDelayPeriod()
+	cache := NewCache()
+
+	go hch.loop(cache.latestWrite, bufferGraphite)
+
 	go graphiteFeeder.maintainGraphiteFeed(bufferGraphite, graphiteTicker)
-	go maintainLatest(latestRead, latestWrite)
+
 	return hch
 }
 
@@ -89,47 +89,6 @@ func (hch *hchandlers) loop(latestWrite chan<- fthealth.HealthResult, bufferGrap
 	}
 }
 
-func (hch *hchandlers) maintainDelayPeriod() {
-	response, err := hch.kapi.Get(context.Background(), keyName, nil)
-	if err != nil {
-		log.Printf("failed to get value from %v because %v. Using default of %v\n", keyName, err.Error(), defaultDuration)
-		hch.hcPeriod <- defaultDuration
-	} else {
-		initialPeriod, err := strconv.Atoi(response.Node.Value)
-		if err != nil {
-			log.Printf("error reading health check period value '%v'. Defaulting to %v", response.Node.Value, defaultDuration)
-			hch.hcPeriod <- defaultDuration
-		}
-		hch.hcPeriod <- time.Duration(time.Duration(initialPeriod) * time.Second)
-	}
-
-	watcher := hch.kapi.Watcher(keyName, nil)
-	for {
-		next, err := watcher.Next(context.Background())
-		if err != nil {
-			log.Printf("error waiting for new hc period. sleeping 10s: %v\n", err.Error())
-			time.Sleep(10 * time.Second)
-			continue
-		}
-		newPeriod, err := strconv.Atoi(next.Node.Value)
-		if err != nil {
-			log.Printf("error reading health check period value '%v'. Defaulting to %v", next.Node.Value, defaultDuration)
-			hch.hcPeriod <- defaultDuration
-			continue
-		}
-		hch.hcPeriod <- time.Duration(time.Duration(newPeriod) * time.Second)
-	}
-}
-
-func maintainLatest(latestRead chan<- fthealth.HealthResult, latestWrite <-chan fthealth.HealthResult) {
-	var latest fthealth.HealthResult
-	for {
-		select {
-		case latest = <-latestWrite:
-		case latestRead <- latest:
-		}
-	}
-}
 
 func (hch *hchandlers) jsonHandler(w http.ResponseWriter, r *http.Request) {
 	health := <-hch.latestResult

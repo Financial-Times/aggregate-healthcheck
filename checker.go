@@ -19,21 +19,21 @@ type healthcheckResponse struct {
 	}
 }
 
-type ServiceHealthChecker interface {
+type HealthChecker interface {
 	Check(Service) (string, error)
 }
 
-type CocoServiceHealthChecker struct {
+type CocoHealthChecker struct {
 	client *http.Client
 }
 
-func NewCocoServiceHealthChecker(client *http.Client) *CocoServiceHealthChecker {
-	return &CocoServiceHealthChecker{client: client}
+func NewCocoServiceHealthChecker(client *http.Client) *CocoHealthChecker {
+	return &CocoHealthChecker{client: client}
 }
 
-func (c *CocoServiceHealthChecker) Check(service Service) (string, error) {
-	log.Printf("INFO Sending client request: http://%s%s", service.Host, service.Healthcheck)
-	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s%s", service.Host, service.Healthcheck), nil)
+func (c *CocoHealthChecker) Check(service Service) (string, error) {
+	log.Printf("INFO Sending client request: http://%s%s", service.Host, service.Path)
+	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s%s", service.Host, service.Path), nil)
 	if err != nil {
 		return "", errors.New("Error constructing healthcheck request: " + err.Error())
 	}
@@ -75,7 +75,7 @@ func (c *CocoServiceHealthChecker) Check(service Service) (string, error) {
 	return "", nil
 }
 
-func NewCocoServiceHealthCheck(service Service, checker ServiceHealthChecker) fthealth.Check {
+func NewCocoServiceHealthCheck(service Service, checker HealthChecker) fthealth.Check {
 	//horrible hack...but we really need this for the soft go-live
 	var severity uint8 = 2
 	if strings.Contains(service.Name, "synthetic-image-publication-monitor") {

@@ -21,7 +21,6 @@ EXPOSE 8080
 
 CMD /coco-aggregate-healthcheck \
 	--etcd-peers "$ETCD_PEERS" \
-	--key-prefix "$KEY_PREFIX" \
 	--vulcand "$VULCAND_ADDRESS" \
 	--socks-proxy "$SOCKS_PROXY" \
     --graphite-host "$GRAPHITE_HOST" \

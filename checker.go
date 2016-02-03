@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+"time"
 )
 
 type healthcheckResponse struct {
@@ -73,6 +74,16 @@ func (c *CocoHealthChecker) Check(service Service) (string, error) {
 	}
 
 	return "", nil
+}
+
+func (checker HealthChecker) checkHealthSimple(service *Service) TimedHealth {
+	start := time.Now()
+	checks := []fthealth.Check{NewCocoServiceHealthCheck(service, checker)}
+	health := fthealth.RunCheck("Coco Aggregate Healthcheck", "Checks the health of all deployed services", true, checks...)
+	now := time.Now()
+	healthTimed := NewHealthTimed(health, now)
+	log.Printf("DEBUG - got new health results in %v\n", now.Sub(start))
+	return healthTimed
 }
 
 func NewCocoServiceHealthCheck(service Service, checker HealthChecker) fthealth.Check {

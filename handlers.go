@@ -33,7 +33,7 @@ func NewHCHandlers(registry ServiceRegistry, checker HealthChecker, graphiteFeed
 		graphiteFeeder, kapi, hcPeriod}
 
 	// set up channels for buffering data to be sent to Graphite
-	bufferGraphite := make(chan *HealthTimed, 10)
+	bufferGraphite := make(chan *TimedHealth, 10)
 
 	// start checking health and activate handlers to respond on read signals
 	graphiteTicker := time.NewTicker(79 * time.Second)

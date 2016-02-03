@@ -50,8 +50,8 @@ func main() {
 	kapi := client.NewKeysAPI(etcd)
 
 	registry := NewCocoServiceRegistry(kapi, *keyPrefix, *vulcandAddr)
-	go registry.maintainCategories()
-	go registry.maintainServices()
+	go registry.maintainCategoryList()
+	go registry.maintainServiceList()
 
 	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport, Timeout: 10 * time.Second})
 	graphiteFeeder := NewGraphiteFeeder(*graphiteHost, *graphitePort, *environment)

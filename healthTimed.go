@@ -5,11 +5,11 @@ import (
 	"time"
 )
 
-type HealthTimed struct {
+type TimedHealth struct {
 	healthResult fthealth.HealthResult
 	time         time.Time
 }
 
-func NewHealthTimed(healthResult fthealth.HealthResult, time time.Time) *HealthTimed {
-	return &HealthTimed{healthResult, time}
+func NewHealthTimed(healthResult fthealth.HealthResult, time time.Time) *TimedHealth {
+	return &TimedHealth{healthResult, time}
 }

@@ -34,9 +34,16 @@ type Category struct {
 	IsResilient bool
 }
 
+type MeasuredService struct {
+	service         *Service
+	cachedHealth    *CachedHealth
+	bufferedHealths *BufferedHealths //up to 60 healthiness measurements to be buffered and sent at once graphite
+}
+
 type CocoServiceRegistry struct {
 	etcd        client.KeysAPI
 	vulcandAddr string
+	checker     *HealthChecker
 	services    *map[string]Service
 	categories  *map[string]Category
 }
@@ -45,7 +52,7 @@ func NewCocoServiceRegistry(kapi client.KeysAPI, keyPrefix, vulcandAddr string) 
 	return &CocoServiceRegistry{etcd: kapi, keyPrefix: keyPrefix, vulcandAddr: vulcandAddr}
 }
 
-func (r *CocoServiceRegistry) maintainServices() {
+func (r *CocoServiceRegistry) maintainServiceList() {
 	servicesWatcher := r.etcd.Watcher(servicesKeyPre, &client.WatcherOptions{0, true})
 	for {
 		_, err := servicesWatcher.Next(context.Background())
@@ -54,11 +61,11 @@ func (r *CocoServiceRegistry) maintainServices() {
 			time.Sleep(10 * time.Second)
 			continue
 		}
-		r.redefineServices()
+		r.redefineServiceList()
 	}
 }
 
-func (r *CocoServiceRegistry) maintainCategories() {
+func (r *CocoServiceRegistry) maintainCategoryList() {
 	categoriesWatcher := r.etcd.Watcher(categoriesKeyPre, &client.WatcherOptions{0, true})
 	for {
 		_, err := categoriesWatcher.Next(context.Background())
@@ -67,11 +74,11 @@ func (r *CocoServiceRegistry) maintainCategories() {
 			time.Sleep(10 * time.Second)
 			continue
 		}
-		r.redefineCategories()
+		r.redefineCategoryList()
 	}
 }
 
-func (r * CocoServiceRegistry) redefineServices() {
+func (r * CocoServiceRegistry) redefineServiceList() {
 	services := make(map[string]Service)
 	servicesResp, err := r.etcd.Get(context.Background(), &client.GetOptions{Sort: true})
 	if err != nil {
@@ -113,7 +120,7 @@ func (r * CocoServiceRegistry) redefineServices() {
 	r.services = &services
 }
 
-func (r * CocoServiceRegistry) redefineCategories() {
+func (r * CocoServiceRegistry) redefineCategoryList() {
 	categories := make(map[string]Category)
 	categoriesResp, err := r.etcd.Get(context.Background(), categoriesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
@@ -158,4 +165,16 @@ func (r * CocoServiceRegistry) redefineCategories() {
 		categories[name] = Category{Name: name, Period: period, IsResilient: resilient}
 	}
 	r.categories = &categories
+}
+
+func findShortestPeriod(service *Service) time.Duration {
+	minSeconds := defaultDuration.Seconds()
+	minDuration := defaultDuration
+	for _, category := range service.Categories {
+		if category.Period.Seconds() < minSeconds {
+			minSeconds = category.Period.Seconds()
+			minDuration = category.Period
+		}
+	}
+	return minDuration
 }

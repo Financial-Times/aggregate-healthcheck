@@ -27,17 +27,16 @@ func NewGraphiteFeeder(host string, port int, environment string) *GraphiteFeede
 	return &GraphiteFeeder{host, port, environment, connection}
 }
 
-type GraphiteStack struct {
-	service *Service
-	stack   chan *HealthTimed
+type BufferedHealths struct {
+	buffer chan *TimedHealth
 }
 
-func NewGraphiteStack(service *Service) *GraphiteStack {
-	stack := make(chan *HealthTimed, 10)
-	return &GraphiteStack{service, stack}
+func NewBufferedHealth(service *Service) *BufferedHealths {
+	buffer := make(chan *TimedHealth, 60)
+	return &BufferedHealths{service, buffer}
 }
 
-func (graphite *GraphiteFeeder) maintainGraphiteFeed(bufferGraphite chan *HealthTimed, ticker *time.Ticker) {
+func (graphite *GraphiteFeeder) maintainGraphiteFeed(bufferGraphite chan *TimedHealth, ticker *time.Ticker) {
 	for range ticker.C {
 		errPilot := graphite.sendPilotLight()
 		errBuff := graphite.sendBuffer(bufferGraphite)
@@ -53,7 +52,7 @@ func (graphite *GraphiteFeeder) maintainGraphiteFeed(bufferGraphite chan *Health
 	}
 }
 
-func (graphite *GraphiteFeeder) sendBuffer(bufferGraphite chan *HealthTimed) error {
+func (graphite *GraphiteFeeder) sendBuffer(bufferGraphite chan *TimedHealth) error {
 	for {
 		select {
 		case healthTimed := <-bufferGraphite:
@@ -81,7 +80,7 @@ func (graphite *GraphiteFeeder) sendPilotLight() error {
 	return nil
 }
 
-func (graphite *GraphiteFeeder) sendOne(result *HealthTimed) error {
+func (graphite *GraphiteFeeder) sendOne(result *TimedHealth) error {
 	if graphite.connection == nil {
 		return errors.New("Can't send results, no Graphite connection.")
 	}
@@ -100,7 +99,7 @@ func (graphite *GraphiteFeeder) sendOne(result *HealthTimed) error {
 	return nil
 }
 
-func addBack(bufferGraphite chan<- *HealthTimed, healthTimed *HealthTimed) {
+func addBack(bufferGraphite chan<- *TimedHealth, healthTimed *TimedHealth) {
 	select {
 	case bufferGraphite <- healthTimed:
 	default:

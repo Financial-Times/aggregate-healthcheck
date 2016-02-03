@@ -17,24 +17,17 @@ func main() {
 	var (
 		socksProxy   = flag.String("socks-proxy", "", "Use specified SOCKS proxy (e.g. localhost:2323)")
 		etcdPeers    = flag.String("etcd-peers", "http://localhost:4001", "Comma-separated list of addresses of etcd endpoints to connect to")
-		keyPrefix    = flag.String("key-prefix", "/ft/healthcheck/", "Key prefix to list of services in etcd")
 		vulcandAddr = flag.String("vulcand", "localhost:8080", "Vulcand address")
 		graphiteHost = flag.String("graphite-host", "graphite.ft.com", "Graphite host address")
 		graphitePort = flag.Int("graphite-port", 2003, "Graphite port")
 		environment  = flag.String("environment", "local", "Environment tag")
 	)
-
 	flag.Parse()
 
 	transport := &http.Transport{Dial: proxy.Direct.Dial}
-
 	if *socksProxy != "" {
 		dialer, _ := proxy.SOCKS5("tcp", *socksProxy, nil, proxy.Direct)
 		transport.Dial = dialer.Dial
-	}
-
-	if (*keyPrefix)[len(*keyPrefix)-1] != '/' {
-		*keyPrefix = *keyPrefix + "/"
 	}
 
 	cfg := client.Config{
@@ -47,20 +40,20 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	kapi := client.NewKeysAPI(etcd)
-
-	registry := NewCocoServiceRegistry(kapi, *keyPrefix, *vulcandAddr)
-	go registry.maintainCategoryList()
-	go registry.maintainServiceList()
+	etcdKeysApi := client.NewKeysAPI(etcd)
 
 	checker := NewCocoServiceHealthChecker(&http.Client{Transport: transport, Timeout: 10 * time.Second})
 	graphiteFeeder := NewGraphiteFeeder(*graphiteHost, *graphitePort, *environment)
-	handler := NewHCHandlers(registry, checker, graphiteFeeder, kapi).handle
+
+	registry := NewCocoServiceRegistry(etcdKeysApi, *vulcandAddr)
+	go registry.watchContinuously(servicesKeyPre)
+	go registry.watchContinuously(categoriesKeyPre)
+
+	handler := NewHCHandlers(registry, checker, graphiteFeeder, etcdKeysApi).handle
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", handler)
 	r.HandleFunc("/__health", handler)
-
 	err = http.ListenAndServe(":8080", handlers.LoggingHandler(os.Stdout, r))
 	if err != nil {
 		panic(err)

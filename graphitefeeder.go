@@ -31,9 +31,9 @@ type BufferedHealths struct {
 	buffer chan *TimedHealth
 }
 
-func NewBufferedHealth(service *Service) *BufferedHealths {
+func NewBufferedHealth() *BufferedHealths {
 	buffer := make(chan *TimedHealth, 60)
-	return &BufferedHealths{service, buffer}
+	return &BufferedHealths{buffer}
 }
 
 func (graphite *GraphiteFeeder) maintainGraphiteFeed(bufferGraphite chan *TimedHealth, ticker *time.Ticker) {

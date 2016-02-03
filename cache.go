@@ -9,7 +9,7 @@ type CachedHealth struct {
 	latestWrite  chan<- TimedHealth
 }
 
-func NewCache(service *Service) *CachedHealth {
+func NewCachedHealth() *CachedHealth {
 	latestRead := make(chan fthealth.HealthResult)
 	latestWrite := make(chan fthealth.HealthResult)
 	return &CachedHealth{latestRead, latestWrite}

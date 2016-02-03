@@ -38,7 +38,7 @@ func NewHCHandlers(registry ServiceRegistry, checker HealthChecker, graphiteFeed
 	// start checking health and activate handlers to respond on read signals
 	graphiteTicker := time.NewTicker(79 * time.Second)
 
-	cache := NewCache()
+	cache := NewCachedHealth()
 
 	go hch.loop(cache.latestWrite, bufferGraphite)
 

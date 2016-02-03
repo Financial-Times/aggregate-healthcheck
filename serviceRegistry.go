@@ -40,41 +40,48 @@ type MeasuredService struct {
 	bufferedHealths *BufferedHealths //up to 60 healthiness measurements to be buffered and sent at once graphite
 }
 
+func NewMeasuredService(service *Service) struct {
+	return MeasuredService{service: service, NewCachedHealth(), NewBufferedHealth()}
+}
+
 type CocoServiceRegistry struct {
-	etcd        client.KeysAPI
-	vulcandAddr string
-	checker     *HealthChecker
-	services    *map[string]Service
-	categories  *map[string]Category
+	etcd             client.KeysAPI
+	vulcandAddr      string
+	checker          *HealthChecker
+	services         *map[string]Service
+	categories       *map[string]Category
+	measuredServices *map[string]MeasuredService
 }
 
-func NewCocoServiceRegistry(kapi client.KeysAPI, keyPrefix, vulcandAddr string) *CocoServiceRegistry {
-	return &CocoServiceRegistry{etcd: kapi, keyPrefix: keyPrefix, vulcandAddr: vulcandAddr}
+func NewCocoServiceRegistry(etcd client.KeysAPI, vulcandAddr string) *CocoServiceRegistry {
+	return &CocoServiceRegistry{etcd: etcd, vulcandAddr: vulcandAddr}
 }
 
-func (r *CocoServiceRegistry) maintainServiceList() {
-	servicesWatcher := r.etcd.Watcher(servicesKeyPre, &client.WatcherOptions{0, true})
+func (r *CocoServiceRegistry) watchContinuously(key string) {
+	watcher := r.etcd.Watcher(key, &client.WatcherOptions{0, true})
 	for {
-		_, err := servicesWatcher.Next(context.Background())
+		_, err := watcher.Next(context.Background())
 		if err != nil {
-			log.Printf("ERROR - Error waiting for change in registered services in etcd. %v\n Sleeping 10s...", err.Error())
-			time.Sleep(10 * time.Second)
-			continue
-		}
-		r.redefineServiceList()
-	}
-}
-
-func (r *CocoServiceRegistry) maintainCategoryList() {
-	categoriesWatcher := r.etcd.Watcher(categoriesKeyPre, &client.WatcherOptions{0, true})
-	for {
-		_, err := categoriesWatcher.Next(context.Background())
-		if err != nil {
-			log.Printf("ERROR - Error waiting for change in registered categories in etcd. %v\n Sleeping 10s...", err.Error())
+			log.Printf("ERROR - Error waiting for change under %v in etcd. %v\n Sleeping 10s...", key, err.Error())
 			time.Sleep(10 * time.Second)
 			continue
 		}
 		r.redefineCategoryList()
+		r.redefineServiceList()
+
+		// adding new services, not touching existing
+		for _, service := range r.services {
+			if r.measuredServices[service.Name] == nil {
+				r.measuredServices[service.Name] = NewMeasuredService(service)
+			}
+		}
+
+		// removing services that don't exist, not toching the rest
+		for _, measuredService := range r.measuredServices {
+			if r.services[measuredService.service.Name] == nil {
+				delete(r.measuredServices, measuredService.service.Name)
+			}
+		}
 	}
 }
 
@@ -165,6 +172,31 @@ func (r * CocoServiceRegistry) redefineCategoryList() {
 		categories[name] = Category{Name: name, Period: period, IsResilient: resilient}
 	}
 	r.categories = &categories
+}
+
+func (registry CocoServiceRegistry) scheduleCheck(mService *MeasuredService, timer *time.Timer) {
+	// wait
+	<- timer.C
+
+	// check
+	timedHealth := registry.checker.checkHealthSimple(mService.service)
+
+	// write to cache
+	mService.cachedHealth.latestWrite <- timedHealth
+
+	// write to graphite buffer
+	select {
+	case mService.bufferedHealths.buffer <- timedHealth:
+	default:
+	}
+
+	// schedule next check
+	service := registry.services[mService.service.Name]
+	if service == nil {
+		return
+	}
+	waitDuration := findShortestPeriod(service)
+	go registry.scheduleCheck(mService, time.NewTimer(waitDuration))
 }
 
 func findShortestPeriod(service *Service) time.Duration {

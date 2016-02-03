@@ -25,7 +25,7 @@ type Service struct {
 	Name       string
 	Host       string
 	Path       string
-	Categories []Category
+	Categories *[]Category
 }
 
 type Category struct {
@@ -108,7 +108,7 @@ func (r * CocoServiceRegistry) redefineServices() {
 				}
 			}
 		}
-		services = append(services, Service{Name: name, Host: r.vulcandAddr, Path: path, Categories: categories})
+		services = append(services, Service{Name: name, Host: r.vulcandAddr, Path: path, Categories: &categories})
 	}
 	r.services = &services
 }

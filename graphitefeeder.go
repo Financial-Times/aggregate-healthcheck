@@ -10,6 +10,11 @@ import (
 	"time"
 )
 
+const (
+	pilotLightFormat = "coco.health.%s.pilot-light 1 %d\n"
+	metricFormat = "coco.health.%s.services.%s %d %d\n"
+)
+
 type GraphiteFeeder struct {
 	host        string
 	port        int
@@ -17,12 +22,19 @@ type GraphiteFeeder struct {
 	connection  net.Conn
 }
 
-const pilotLightFormat = "coco.health.%s.pilot-light 1 %d\n"
-const metricFormat = "coco.health.%s.services.%s %d %d\n"
-
 func NewGraphiteFeeder(host string, port int, environment string) *GraphiteFeeder {
 	connection := tcpConnect(host, port)
 	return &GraphiteFeeder{host, port, environment, connection}
+}
+
+type GraphiteStack struct {
+	service *Service
+	stack   chan *HealthTimed
+}
+
+func NewGraphiteStack(service *Service) *GraphiteStack {
+	stack := make(chan *HealthTimed, 10)
+	return &GraphiteStack{service, stack}
 }
 
 func (graphite *GraphiteFeeder) maintainGraphiteFeed(bufferGraphite chan *HealthTimed, ticker *time.Ticker) {

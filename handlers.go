@@ -13,8 +13,6 @@ import (
 type hchandlers struct {
 	registry       ServiceRegistry
 	checker        HealthChecker
-	name           string
-	description    string
 	latestResult   <-chan fthealth.HealthResult
 	graphiteFeeder *GraphiteFeeder
 	kapi           client.KeysAPI
@@ -31,7 +29,7 @@ func NewHCHandlers(registry ServiceRegistry, checker HealthChecker, graphiteFeed
 	// set up channels for reading health statuses over HTTP
 
 	hcPeriod := make(chan time.Duration)
-	hch := &hchandlers{registry, checker, "Coco Aggregate Healthcheck", "Checks the health of all deployed services",
+	hch := &hchandlers{registry, checker,
 		graphiteFeeder, kapi, hcPeriod}
 
 	// set up channels for buffering data to be sent to Graphite
@@ -57,37 +55,7 @@ func (hch *hchandlers) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (hch *hchandlers) loop(latestWrite chan<- fthealth.HealthResult, bufferGraphite chan<- *HealthTimed) {
 
-	// get initial period
-	period := <-hch.hcPeriod
-	log.Printf("set health check period to %v\n", period)
-
-	timer := time.NewTimer(0)
-
-	for {
-		select {
-		case <-timer.C:
-			checks := []fthealth.Check{}
-			for _, service := range hch.registry.Services() {
-				checks = append(checks, NewCocoServiceHealthCheck(service, hch.checker))
-			}
-			start := time.Now()
-			health := fthealth.RunCheck(hch.name, hch.description, true, checks...)
-			now := time.Now()
-			log.Printf("INFO got new health results in %v\n", now.Sub(start))
-			latestWrite <- health
-			select {
-			case bufferGraphite <- NewHealthTimed(health, now):
-			default:
-			}
-		case period = <-hch.hcPeriod:
-			log.Printf("INFO updated health check period to %v\n", period)
-		}
-
-		timer = time.NewTimer(period)
-	}
-}
 
 
 func (hch *hchandlers) jsonHandler(w http.ResponseWriter, r *http.Request) {

@@ -128,7 +128,7 @@ func (r *ServiceRegistry) redefineServiceList() {
 				categories = append(categories, "default")
 			}
 		}
-		services["name"] = Service{Name: name, Host: r.vulcandAddr, Path: path, Categories: categories}
+		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: path, Categories: categories}
 	}
 	r.services = services
 }

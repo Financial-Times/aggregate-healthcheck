@@ -46,8 +46,8 @@ func main() {
 	graphiteFeeder := NewGraphiteFeeder(*graphiteHost, *graphitePort, *environment)
 
 	registry := NewCocoServiceRegistry(etcdKeysApi, *vulcandAddr)
-	go registry.watchContinuously(servicesKeyPre)
-	go registry.watchContinuously(categoriesKeyPre)
+	go registry.watchServices()
+	go registry.watchCategories()
 
 	handler := NewHCHandlers(*registry, checker, graphiteFeeder, etcdKeysApi).handle
 

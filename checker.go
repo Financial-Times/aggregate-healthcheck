@@ -22,7 +22,7 @@ type healthcheckResponse struct {
 
 type HealthChecker interface {
 	Check(Service) (string, error)
-	checkHealthSimple(*Service) *TimedHealth
+	checkHealthSimple(*Service) *fthealth.HealthResult
 }
 
 type CocoHealthChecker struct {
@@ -77,14 +77,12 @@ func (c *CocoHealthChecker) Check(service Service) (string, error) {
 	return "", nil
 }
 
-func (checker *CocoHealthChecker) checkHealthSimple(service *Service) *TimedHealth {
+func (checker *CocoHealthChecker) checkHealthSimple(service *Service) *fthealth.HealthResult {
 	start := time.Now()
-	checks := []fthealth.Check{NewCocoServiceHealthCheck(*service, checker)}
-	health := fthealth.RunCheck("Coco Aggregate Healthcheck", "Checks the health of all deployed services", true, checks...)
+	healthResult := fthealth.RunCheck(service.Name, fmt.Sprintf("Checks the health of %v", service.Name), true, NewCocoServiceHealthCheck(*service, checker))
 	now := time.Now()
-	healthTimed := NewHealthTimed(health, now)
 	log.Printf("DEBUG - got new health results in %v\n", now.Sub(start))
-	return healthTimed
+	return healthResult
 }
 
 func NewCocoServiceHealthCheck(service Service, checker HealthChecker) fthealth.Check {
@@ -99,6 +97,8 @@ func NewCocoServiceHealthCheck(service Service, checker HealthChecker) fthealth.
 		PanicGuide:       "https://sites.google.com/a/ft.com/technology/systems/dynamic-semantic-publishing/coco/runbook",
 		Severity:         severity,
 		TechnicalSummary: "The service is not healthy. Please check the panic guide.",
-		Checker:          func() (string, error) { return checker.Check(service) },
+		Checker:          func() (string, error) {
+			return checker.Check(service)
+		},
 	}
 }

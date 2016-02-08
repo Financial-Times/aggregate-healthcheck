@@ -11,9 +11,8 @@ import (
 )
 
 type hchandlers struct {
-	registry       ServiceRegistry
+	registry       *ServiceRegistry
 	checker        HealthChecker
-	latestResult   <-chan fthealth.HealthResult
 	graphiteFeeder *GraphiteFeeder
 	kapi           client.KeysAPI
 	hcPeriod       chan time.Duration
@@ -46,6 +45,22 @@ func (hch *hchandlers) loop(latestWrite chan<- TimedHealth, buffer chan *TimedHe
 
 }
 
+func (hch hchandlers) buildFullHealth() fthealth.HealthResult {
+	var allCheckResults []fthealth.CheckResult
+	for _, mService := range hchandlers.registry.measuredServices {
+		healthResult := <-mService.cachedHealth.latestResult
+		allCheckResults = append(healthResult.Checks[0], allCheckResults)
+	}
+	return fthealth.HealthResult{
+		Checks: allCheckResults,
+		Description: "Aggregated health of services in the cluster.",
+		Name: "cluster health",
+		SchemaVersion: 1.0,
+		Ok: true,
+		Severity: 1,
+	}
+}
+
 func (hch *hchandlers) handle(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Accept") == "application/json" {
 		hch.jsonHandler(w, r)
@@ -55,8 +70,7 @@ func (hch *hchandlers) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (hch *hchandlers) jsonHandler(w http.ResponseWriter, r *http.Request) {
-	health := <-hch.latestResult
-
+	health := hch.buildFullHealth()
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	err := enc.Encode(health)

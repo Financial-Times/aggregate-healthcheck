@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"github.com/golang/go/src/pkg/reflect"
 )
 
 const (
@@ -58,24 +59,26 @@ func NewCocoServiceRegistry(etcd client.KeysAPI, vulcandAddr string) *ServiceReg
 	return &ServiceRegistry{etcd: etcd, vulcandAddr: vulcandAddr}
 }
 
-func (r *ServiceRegistry) watchContinuously(key string) {
-	watcher := r.etcd.Watcher(key, &client.WatcherOptions{0, true})
+func (r *ServiceRegistry) watchServices() {
+	watcher := r.etcd.Watcher(servicesKeyPre, &client.WatcherOptions{0, true})
 	for {
 		_, err := watcher.Next(context.Background())
 		if err != nil {
-			log.Printf("ERROR - Error waiting for change under %v in etcd. %v\n Sleeping 10s...", key, err.Error())
+			log.Printf("ERROR - Error waiting for change under %v in etcd. %v\n Sleeping 10s...", servicesKeyPre, err.Error())
 			time.Sleep(10 * time.Second)
 			continue
 		}
-		r.redefineCategoryList()
 		r.redefineServiceList()
 
 		// adding new services, not touching existing
 		for _, service := range r.services {
-			if _, ok := r.measuredServices[service.Name]; !ok {
-				mService := NewMeasuredService(&service)
-				r.measuredServices[service.Name] = mService
-				go r.scheduleCheck(&mService, time.NewTimer(0))
+			if !reflect.DeepEqual(service, r.measuredServices[service.Name].service) {
+				if mService, ok := r.measuredServices[service.Name]; ok {
+					mService.cachedHealth.terminate <- true
+				}
+				newMService := NewMeasuredService(&service)
+				r.measuredServices[service.Name] = newMService;
+				go r.scheduleCheck(newMService, time.NewTimer(0))
 			}
 		}
 
@@ -83,8 +86,22 @@ func (r *ServiceRegistry) watchContinuously(key string) {
 		for _, measuredService := range r.measuredServices {
 			if _, ok := r.services[measuredService.service.Name]; !ok {
 				delete(r.measuredServices, measuredService.service.Name)
+				measuredService.cachedHealth.terminate <- true
 			}
 		}
+	}
+}
+
+func (r *ServiceRegistry) watchCategories() {
+	watcher := r.etcd.Watcher(categoriesKeyPre, &client.WatcherOptions{0, true})
+	for {
+		_, err := watcher.Next(context.Background())
+		if err != nil {
+			log.Printf("ERROR - Error waiting for change under %v in etcd. %v\n Sleeping 10s...", categoriesKeyPre, err.Error())
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		r.redefineCategoryList()
 	}
 }
 
@@ -182,34 +199,36 @@ func (r *ServiceRegistry) redefineCategoryList() {
 
 func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *time.Timer) {
 	// wait
-	<-timer.C
+	select {
+	case <- mService.cachedHealth.terminate:
+		return
+	case <-timer.C:
+	}
 
 	// check
-	timedHealth := registry.checker.checkHealthSimple(mService.service)
+	healthResult := registry.checker.checkHealthSimple(mService.service)
 
 	// write to cache
-	mService.cachedHealth.latestWrite <- *timedHealth
+	mService.cachedHealth.latestWrite <- *healthResult
 
 	// write to graphite buffer
 	select {
-	case mService.bufferedHealths.buffer <- timedHealth:
+	case mService.bufferedHealths.buffer <- healthResult:
 	default:
 	}
 
-	// schedule next check
-	_, ok := registry.services[mService.service.Name]
-	if !ok {
-		return
-	}
-	waitDuration := findShortestPeriod(registry.categories, mService.service.Categories)
+	waitDuration := registry.findShortestPeriod(mService.service)
 	go registry.scheduleCheck(mService, time.NewTimer(waitDuration))
 }
 
-func findShortestPeriod(allCategories map[string]Category, categoryNames []string) time.Duration {
+func (registry ServiceRegistry) findShortestPeriod(service Service) time.Duration {
 	minSeconds := defaultDuration.Seconds()
 	minDuration := defaultDuration
-	for _, categoryName := range categoryNames {
-		category := allCategories[categoryName]
+	for _, categoryName := range service.Categories {
+		category, ok := registry.categories[categoryName]
+		if !ok {
+			continue
+		}
 		if category.Period.Seconds() < minSeconds {
 			minSeconds = category.Period.Seconds()
 			minDuration = category.Period

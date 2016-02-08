@@ -5,13 +5,14 @@ import (
 )
 
 type CachedHealth struct {
-	latestResult <-chan TimedHealth
-	latestWrite  chan<- TimedHealth
+	latestResult <-chan fthealth.HealthResult
+	latestWrite  chan<- fthealth.HealthResult
+	terminate    chan<- bool
 }
 
 func NewCachedHealth() *CachedHealth {
-	latestRead := make(chan TimedHealth)
-	latestWrite := make(chan TimedHealth)
+	latestRead := make(chan fthealth.HealthResult)
+	latestWrite := make(chan fthealth.HealthResult)
 	return &CachedHealth{latestRead, latestWrite}
 }
 

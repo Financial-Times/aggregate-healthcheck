@@ -12,7 +12,7 @@ import (
 
 const (
 	pilotLightFormat = "coco.health.%s.pilot-light 1 %d\n"
-	metricFormat = "coco.health.%s.services.%s %d %d\n"
+	metricFormat     = "coco.health.%s.services.%s %d %d\n"
 )
 
 type GraphiteFeeder struct {

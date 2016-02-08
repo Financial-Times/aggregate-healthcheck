@@ -10,8 +10,8 @@ type CachedHealth struct {
 }
 
 func NewCachedHealth() *CachedHealth {
-	latestRead := make(chan fthealth.HealthResult)
-	latestWrite := make(chan fthealth.HealthResult)
+	latestRead := make(chan TimedHealth)
+	latestWrite := make(chan TimedHealth)
 	return &CachedHealth{latestRead, latestWrite}
 }
 

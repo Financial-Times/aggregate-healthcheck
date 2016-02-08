@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
-	"log"
+	"github.com/coreos/etcd/client"
+	_ "log"
 	"net/http"
 	"time"
-	"github.com/coreos/etcd/client"
 )
 
 type hchandlers struct {
@@ -19,17 +19,12 @@ type hchandlers struct {
 	hcPeriod       chan time.Duration
 }
 
-const (
-
-
-
-)
-
 func NewHCHandlers(registry ServiceRegistry, checker HealthChecker, graphiteFeeder *GraphiteFeeder, kapi client.KeysAPI) *hchandlers {
 	// set up channels for reading health statuses over HTTP
 
 	hcPeriod := make(chan time.Duration)
-	hch := &hchandlers{registry, checker,
+	latestResult := make(chan fthealth.HealthResult)
+	hch := &hchandlers{registry, checker, latestResult,
 		graphiteFeeder, kapi, hcPeriod}
 
 	// set up channels for buffering data to be sent to Graphite
@@ -47,6 +42,10 @@ func NewHCHandlers(registry ServiceRegistry, checker HealthChecker, graphiteFeed
 	return hch
 }
 
+func (hch *hchandlers) loop(latestWrite chan<- TimedHealth, buffer chan *TimedHealth) {
+
+}
+
 func (hch *hchandlers) handle(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Accept") == "application/json" {
 		hch.jsonHandler(w, r)
@@ -54,9 +53,6 @@ func (hch *hchandlers) handle(w http.ResponseWriter, r *http.Request) {
 		hch.htmlHandler(w, r)
 	}
 }
-
-
-
 
 func (hch *hchandlers) jsonHandler(w http.ResponseWriter, r *http.Request) {
 	health := <-hch.latestResult
@@ -98,5 +94,6 @@ func (hch *hchandlers) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Add("Content-Type", "text/html")
-	fmt.Fprintf(w, resp, hch.name, servicesHtml)
+	//TODO fmt.Fprintf(w, resp, hch.name, servicesHtml)
+	fmt.Fprintf(w, resp, "whatname", servicesHtml)
 }

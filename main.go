@@ -17,7 +17,7 @@ func main() {
 	var (
 		socksProxy   = flag.String("socks-proxy", "", "Use specified SOCKS proxy (e.g. localhost:2323)")
 		etcdPeers    = flag.String("etcd-peers", "http://localhost:4001", "Comma-separated list of addresses of etcd endpoints to connect to")
-		vulcandAddr = flag.String("vulcand", "localhost:8080", "Vulcand address")
+		vulcandAddr  = flag.String("vulcand", "localhost:8080", "Vulcand address")
 		graphiteHost = flag.String("graphite-host", "graphite.ft.com", "Graphite host address")
 		graphitePort = flag.Int("graphite-port", 2003, "Graphite port")
 		environment  = flag.String("environment", "local", "Environment tag")
@@ -49,7 +49,7 @@ func main() {
 	go registry.watchContinuously(servicesKeyPre)
 	go registry.watchContinuously(categoriesKeyPre)
 
-	handler := NewHCHandlers(registry, checker, graphiteFeeder, etcdKeysApi).handle
+	handler := NewHCHandlers(*registry, checker, graphiteFeeder, etcdKeysApi).handle
 
 	r := mux.NewRouter()
 	r.HandleFunc("/", handler)

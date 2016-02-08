@@ -4,28 +4,29 @@ import (
 	"github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
 	"log"
-	"time"
-	"strconv"
 	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
 )
 
 const (
-	servicesKeyPre = "/ft/healthcheck"
+	servicesKeyPre   = "/ft/healthcheck"
 	categoriesKeyPre = "/ft/healthcheck-categories"
-	periodKeySuffix = "/period_seconds"
-	resilientSuffix = "/is_resilient"
-	pathSuffix = "/path"
+	periodKeySuffix  = "/period_seconds"
+	resilientSuffix  = "/is_resilient"
+	pathSuffix       = "/path"
 	categoriesSuffix = "/categories"
-	defaultDuration = time.Duration(60 * time.Second)
-	defaultPath = "__health"
-	defaultCategory = Category{"default", defaultDuration, false}
+	defaultDuration  = time.Duration(60 * time.Second)
+	defaultPath      = "__health"
+	//defaultCategory = Category{"default", defaultDuration, false}
 )
 
 type Service struct {
 	Name       string
 	Host       string
 	Path       string
-	Categories *[]Category
+	Categories []string
 }
 
 type Category struct {
@@ -40,24 +41,24 @@ type MeasuredService struct {
 	bufferedHealths *BufferedHealths //up to 60 healthiness measurements to be buffered and sent at once graphite
 }
 
-func NewMeasuredService(service *Service) struct {
-	return MeasuredService{service: service, NewCachedHealth(), NewBufferedHealth()}
+func NewMeasuredService(service *Service) MeasuredService {
+	return MeasuredService{service, NewCachedHealth(), NewBufferedHealth()}
 }
 
-type CocoServiceRegistry struct {
+type ServiceRegistry struct {
 	etcd             client.KeysAPI
 	vulcandAddr      string
-	checker          *HealthChecker
-	services         *map[string]Service
-	categories       *map[string]Category
-	measuredServices *map[string]MeasuredService
+	checker          HealthChecker
+	services         map[string]Service
+	categories       map[string]Category
+	measuredServices map[string]MeasuredService
 }
 
-func NewCocoServiceRegistry(etcd client.KeysAPI, vulcandAddr string) *CocoServiceRegistry {
-	return &CocoServiceRegistry{etcd: etcd, vulcandAddr: vulcandAddr}
+func NewCocoServiceRegistry(etcd client.KeysAPI, vulcandAddr string) *ServiceRegistry {
+	return &ServiceRegistry{etcd: etcd, vulcandAddr: vulcandAddr}
 }
 
-func (r *CocoServiceRegistry) watchContinuously(key string) {
+func (r *ServiceRegistry) watchContinuously(key string) {
 	watcher := r.etcd.Watcher(key, &client.WatcherOptions{0, true})
 	for {
 		_, err := watcher.Next(context.Background())
@@ -71,23 +72,25 @@ func (r *CocoServiceRegistry) watchContinuously(key string) {
 
 		// adding new services, not touching existing
 		for _, service := range r.services {
-			if r.measuredServices[service.Name] == nil {
-				r.measuredServices[service.Name] = NewMeasuredService(service)
+			if _, ok := r.measuredServices[service.Name]; !ok {
+				mService := NewMeasuredService(&service)
+				r.measuredServices[service.Name] = mService
+				go r.scheduleCheck(&mService, time.NewTimer(0))
 			}
 		}
 
 		// removing services that don't exist, not toching the rest
 		for _, measuredService := range r.measuredServices {
-			if r.services[measuredService.service.Name] == nil {
+			if _, ok := r.services[measuredService.service.Name]; !ok {
 				delete(r.measuredServices, measuredService.service.Name)
 			}
 		}
 	}
 }
 
-func (r * CocoServiceRegistry) redefineServiceList() {
+func (r *ServiceRegistry) redefineServiceList() {
 	services := make(map[string]Service)
-	servicesResp, err := r.etcd.Get(context.Background(), &client.GetOptions{Sort: true})
+	servicesResp, err := r.etcd.Get(context.Background(), servicesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
 		log.Printf("ERROR - Failed to get value from %v: %v.", servicesKeyPre, err.Error())
 		return
@@ -103,31 +106,34 @@ func (r * CocoServiceRegistry) redefineServiceList() {
 		}
 		name := filepath.Base(servicesResp.Node.Key)
 		path := defaultPath
-		pathResp, err := r.etcd.Get(context.Background(), serviceNode.Key + pathSuffix, &client.GetOptions{Sort: true})
+		pathResp, err := r.etcd.Get(context.Background(), serviceNode.Key+pathSuffix, &client.GetOptions{Sort: true})
 		if err != nil {
 			log.Printf("WARN - Failed to get health check path from %v: %v. Using default %v", serviceNode.Key, err.Error(), defaultPath)
 		} else {
 			path = pathResp.Node.Value
 		}
-		categories := [1]Category{defaultCategory}
-		categoriesResp, err := r.etcd.Get(context.Background(), serviceNode.Key + categoriesSuffix, &client.GetOptions{Sort: true})
+
+		categoriesResp, err := r.etcd.Get(context.Background(), serviceNode.Key+categoriesSuffix, &client.GetOptions{Sort: true})
+		var categories []string
+
+		//TODO simplify this
 		if err != nil {
 			log.Printf("WARN - Failed to get app category from %v: %v. Using default 'default'", serviceNode.Key, err.Error())
+			categories = append(categories, "default")
 		} else {
-			for _, categoryNode := range categoriesResp.Node.Nodes {
-				categoryName := filepath.Base(categoryNode.Key)
-				category := r.categories[categoryName]
-				if category != nil {
-					categories = append(categories, category)
-				}
+			if !categoriesResp.Node.Dir {
+				categories = strings.Split(categoriesResp.Node.Value, ",")
+			} else {
+				log.Printf("WARN - Failed to get app category from %v: %v. Using default 'default'", serviceNode.Key, err.Error())
+				categories = append(categories, "default")
 			}
 		}
-		services = append(services, Service{Name: name, Host: r.vulcandAddr, Path: path, Categories: &categories})
+		services["name"] = Service{Name: name, Host: r.vulcandAddr, Path: path, Categories: categories}
 	}
-	r.services = &services
+	r.services = services
 }
 
-func (r * CocoServiceRegistry) redefineCategoryList() {
+func (r *ServiceRegistry) redefineCategoryList() {
 	categories := make(map[string]Category)
 	categoriesResp, err := r.etcd.Get(context.Background(), categoriesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
@@ -144,25 +150,25 @@ func (r * CocoServiceRegistry) redefineCategoryList() {
 			return
 		}
 		name := filepath.Base(categoryNode.Key)
-		periodResp, err := r.etcd.Get(context.Background(), categoryNode.Key + periodKeySuffix, &client.GetOptions{Sort: true})
+		periodResp, err := r.etcd.Get(context.Background(), categoryNode.Key+periodKeySuffix, &client.GetOptions{Sort: true})
 		period := defaultDuration
 		if err != nil {
 			log.Printf("WARN - Failed to get health check period from %v: %v. Using default %v", categoryNode.Key, err.Error(), defaultDuration)
 		} else {
-			periodInt, err2 := strconv.Atoi(periodResp.Node.Value)
-			if err2 != nil {
+			periodInt, err := strconv.Atoi(periodResp.Node.Value)
+			if err != nil {
 				log.Printf("WARN - Error reading health check period value '%v'. Using default %v", periodResp.Node.Value, defaultDuration)
-				periodInt = defaultDuration
+				periodInt = int(defaultDuration.Seconds())
 			}
-			period = periodInt * time.Second
+			period = time.Duration(periodInt) * time.Second
 		}
-		resilientResp, err := r.etcd.Get(context.Background(), categoryNode.Key + resilientSuffix, nil)
+		resilientResp, err := r.etcd.Get(context.Background(), categoryNode.Key+resilientSuffix, nil)
 		resilient := false
 		if err != nil {
 			log.Printf("WARN - Failed to get resilient setting from %v: %v. Using default: false.\n", categoryNode.Key, err.Error())
 		} else {
-			resilientBool, err2 := strconv.ParseBool(periodResp.Node.Value)
-			if err2 != nil {
+			resilientBool, err := strconv.ParseBool(periodResp.Node.Value)
+			if err != nil {
 				log.Printf("WARN - Error reading resilient setting '%v'. Using default: false.", resilientResp.Node.Value)
 				resilientBool = false
 			}
@@ -171,18 +177,18 @@ func (r * CocoServiceRegistry) redefineCategoryList() {
 
 		categories[name] = Category{Name: name, Period: period, IsResilient: resilient}
 	}
-	r.categories = &categories
+	r.categories = categories
 }
 
-func (registry CocoServiceRegistry) scheduleCheck(mService *MeasuredService, timer *time.Timer) {
+func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *time.Timer) {
 	// wait
-	<- timer.C
+	<-timer.C
 
 	// check
 	timedHealth := registry.checker.checkHealthSimple(mService.service)
 
 	// write to cache
-	mService.cachedHealth.latestWrite <- timedHealth
+	mService.cachedHealth.latestWrite <- *timedHealth
 
 	// write to graphite buffer
 	select {
@@ -191,18 +197,19 @@ func (registry CocoServiceRegistry) scheduleCheck(mService *MeasuredService, tim
 	}
 
 	// schedule next check
-	service := registry.services[mService.service.Name]
-	if service == nil {
+	_, ok := registry.services[mService.service.Name]
+	if !ok {
 		return
 	}
-	waitDuration := findShortestPeriod(service)
+	waitDuration := findShortestPeriod(registry.categories, mService.service.Categories)
 	go registry.scheduleCheck(mService, time.NewTimer(waitDuration))
 }
 
-func findShortestPeriod(service *Service) time.Duration {
+func findShortestPeriod(allCategories map[string]Category, categoryNames []string) time.Duration {
 	minSeconds := defaultDuration.Seconds()
 	minDuration := defaultDuration
-	for _, category := range service.Categories {
+	for _, categoryName := range categoryNames {
+		category := allCategories[categoryName]
 		if category.Period.Seconds() < minSeconds {
 			minSeconds = category.Period.Seconds()
 			minDuration = category.Period

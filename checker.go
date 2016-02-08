@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"github.com/Financial-Times/go-fthealth"
+	"github.com/aws/aws-sdk-go/service"
 )
 
 type healthcheckResponse struct {
@@ -99,6 +101,24 @@ func NewCocoServiceHealthCheck(service Service, checker HealthChecker) fthealth.
 		TechnicalSummary: "The service is not healthy. Please check the panic guide.",
 		Checker:          func() (string, error) {
 			return checker.Check(service)
+		},
+	}
+}
+
+func NewCocoFakeCheck(healthResult fthealth.HealthResult) fthealth.Check {
+	check := healthResult.Checks[0]
+	return fthealth.Check{
+		BusinessImpact:   check.BusinessImpact,
+		Name:             check.Name,
+		PanicGuide:       check.PanicGuide,
+		Severity:         check.Severity,
+		TechnicalSummary: check.TechnicalSummary,
+		Checker:          func() (string, error) {
+			if healthResult.Ok {
+				return "", nil
+			} else {
+				return "", errors.New(healthResult.Checks[0].Output)
+			}
 		},
 	}
 }

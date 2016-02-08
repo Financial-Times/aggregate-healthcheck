@@ -41,24 +41,14 @@ func NewHCHandlers(registry ServiceRegistry, checker HealthChecker, graphiteFeed
 	return hch
 }
 
-func (hch *hchandlers) loop(latestWrite chan<- TimedHealth, buffer chan *TimedHealth) {
-
-}
-
 func (hch hchandlers) buildFullHealth() fthealth.HealthResult {
-	var allCheckResults []fthealth.CheckResult
+	var allFakeChecks []fthealth.Check
 	for _, mService := range hchandlers.registry.measuredServices {
 		healthResult := <-mService.cachedHealth.latestResult
-		allCheckResults = append(healthResult.Checks[0], allCheckResults)
+		fakeCheck := NewCocoFakeCheck(healthResult)
+		allFakeChecks = append(allFakeChecks, fakeCheck)
 	}
-	return fthealth.HealthResult{
-		Checks: allCheckResults,
-		Description: "Aggregated health of services in the cluster.",
-		Name: "cluster health",
-		SchemaVersion: 1.0,
-		Ok: true,
-		Severity: 1,
-	}
+	return fthealth.RunCheck("Cluster health", "Checks the health of the whole cluster", true, allFakeChecks)
 }
 
 func (hch *hchandlers) handle(w http.ResponseWriter, r *http.Request) {

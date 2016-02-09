@@ -8,7 +8,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"github.com/golang/go/src/pkg/reflect"
+	"reflect"
+	fthealth "github.com/Financial-Times/go-fthealth/v1a"
+"fmt"
 )
 
 const (
@@ -20,7 +22,6 @@ const (
 	categoriesSuffix = "/categories"
 	defaultDuration  = time.Duration(60 * time.Second)
 	defaultPath      = "__health"
-	//defaultCategory = Category{"default", defaultDuration, false}
 )
 
 type Service struct {
@@ -39,11 +40,11 @@ type Category struct {
 type MeasuredService struct {
 	service         *Service
 	cachedHealth    *CachedHealth
-	bufferedHealths *BufferedHealths //up to 60 healthiness measurements to be buffered and sent at once graphite
+	//bufferedHealths *BufferedHealths //up to 60 healthiness measurements to be buffered and sent at once graphite
 }
 
-func NewMeasuredService(service *Service) MeasuredService {
-	return MeasuredService{service, NewCachedHealth(), NewBufferedHealth()}
+func NewMeasuredService(service *Service) *MeasuredService {
+	return &MeasuredService{service, NewCachedHealth()}
 }
 
 type ServiceRegistry struct {
@@ -52,11 +53,14 @@ type ServiceRegistry struct {
 	checker          HealthChecker
 	services         map[string]Service
 	categories       map[string]Category
-	measuredServices map[string]MeasuredService
+	measuredServices map[string]*MeasuredService
 }
 
-func NewCocoServiceRegistry(etcd client.KeysAPI, vulcandAddr string) *ServiceRegistry {
-	return &ServiceRegistry{etcd: etcd, vulcandAddr: vulcandAddr}
+func NewCocoServiceRegistry(etcd client.KeysAPI, vulcandAddr string, checker HealthChecker) *ServiceRegistry {
+	services := make(map[string]Service)
+	categories := make(map[string]Category)
+	measuredServices := make(map[string]*MeasuredService)
+	return &ServiceRegistry{etcd, vulcandAddr, checker, services, categories, measuredServices}
 }
 
 func (r *ServiceRegistry) watchServices() {
@@ -206,18 +210,22 @@ func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *
 	}
 
 	// check
-	healthResult := registry.checker.checkHealthSimple(mService.service)
+	healthResult := fthealth.RunCheck(mService.service.Name,
+		fmt.Sprintf("Checks the health of %v", mService.service.Name),
+		true,
+		NewServiceHealthCheck(*mService.service, registry.checker))
+	log.Printf("DEBUG - got new health results for %v\n", mService.service.Name)
 
 	// write to cache
-	mService.cachedHealth.latestWrite <- *healthResult
+	mService.cachedHealth.latestWrite <- healthResult
 
 	// write to graphite buffer
-	select {
-	case mService.bufferedHealths.buffer <- healthResult:
-	default:
-	}
+	//select {
+	//case mService.bufferedHealths.buffer <- healthResult:
+	//default:
+	//}
 
-	waitDuration := registry.findShortestPeriod(mService.service)
+	waitDuration := registry.findShortestPeriod(*mService.service)
 	go registry.scheduleCheck(mService, time.NewTimer(waitDuration))
 }
 

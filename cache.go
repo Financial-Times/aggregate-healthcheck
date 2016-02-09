@@ -7,13 +7,14 @@ import (
 type CachedHealth struct {
 	latestResult <-chan fthealth.HealthResult
 	latestWrite  chan<- fthealth.HealthResult
-	terminate    chan<- bool
+	terminate    chan bool
 }
 
 func NewCachedHealth() *CachedHealth {
 	latestRead := make(chan fthealth.HealthResult)
 	latestWrite := make(chan fthealth.HealthResult)
-	return &CachedHealth{latestRead, latestWrite}
+	terminate := make(chan bool)
+	return &CachedHealth{latestRead, latestWrite, terminate}
 }
 
 func (c CachedHealth) maintainLatest(latestRead chan<- fthealth.HealthResult, latestWrite <-chan fthealth.HealthResult) {

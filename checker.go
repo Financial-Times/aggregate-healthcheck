@@ -9,9 +9,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"time"
-	"github.com/Financial-Times/go-fthealth"
-	"github.com/aws/aws-sdk-go/service"
 )
 
 type healthcheckResponse struct {
@@ -24,18 +21,17 @@ type healthcheckResponse struct {
 
 type HealthChecker interface {
 	Check(Service) (string, error)
-	checkHealthSimple(*Service) *fthealth.HealthResult
 }
 
-type CocoHealthChecker struct {
+type HttpHealthChecker struct {
 	client *http.Client
 }
 
-func NewCocoServiceHealthChecker(client *http.Client) *CocoHealthChecker {
-	return &CocoHealthChecker{client: client}
+func NewHttpHealthChecker(client *http.Client) *HttpHealthChecker {
+	return &HttpHealthChecker{client: client}
 }
 
-func (c *CocoHealthChecker) Check(service Service) (string, error) {
+func (c *HttpHealthChecker) Check(service Service) (string, error) {
 	log.Printf("INFO Sending client request: http://%s%s", service.Host, service.Path)
 	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s%s", service.Host, service.Path), nil)
 	if err != nil {
@@ -79,15 +75,7 @@ func (c *CocoHealthChecker) Check(service Service) (string, error) {
 	return "", nil
 }
 
-func (checker *CocoHealthChecker) checkHealthSimple(service *Service) *fthealth.HealthResult {
-	start := time.Now()
-	healthResult := fthealth.RunCheck(service.Name, fmt.Sprintf("Checks the health of %v", service.Name), true, NewCocoServiceHealthCheck(*service, checker))
-	now := time.Now()
-	log.Printf("DEBUG - got new health results in %v\n", now.Sub(start))
-	return healthResult
-}
-
-func NewCocoServiceHealthCheck(service Service, checker HealthChecker) fthealth.Check {
+func NewServiceHealthCheck(service Service, checker HealthChecker) fthealth.Check {
 	//horrible hack...but we really need this for the soft go-live
 	var severity uint8 = 2
 	if strings.Contains(service.Name, "synthetic-image-publication-monitor") {
@@ -105,7 +93,7 @@ func NewCocoServiceHealthCheck(service Service, checker HealthChecker) fthealth.
 	}
 }
 
-func NewCocoFakeCheck(healthResult fthealth.HealthResult) fthealth.Check {
+func NewCheckFromSingularHealthResult(healthResult fthealth.HealthResult) fthealth.Check {
 	check := healthResult.Checks[0]
 	return fthealth.Check{
 		BusinessImpact:   check.BusinessImpact,
@@ -113,12 +101,12 @@ func NewCocoFakeCheck(healthResult fthealth.HealthResult) fthealth.Check {
 		PanicGuide:       check.PanicGuide,
 		Severity:         check.Severity,
 		TechnicalSummary: check.TechnicalSummary,
-		Checker:          func() (string, error) {
+		Checker:
+		func() (string, error) {
 			if healthResult.Ok {
 				return "", nil
-			} else {
-				return "", errors.New(healthResult.Checks[0].Output)
 			}
+			return "", errors.New(healthResult.Checks[0].Output)
 		},
 	}
 }

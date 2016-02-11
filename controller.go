@@ -56,10 +56,10 @@ func (c controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	health := c.combineHealthResults()
 	htmlTemplate := "<!DOCTYPE html>" +
 		"<head>" +
-		"<title>Coco Aggregate Healthcheck</title>" +
+		"<title>CoCo Aggregate Healthcheck</title>" +
 		"</head>" +
 		"<body>" +
-		"<h1>Coco Aggregate Healthcheck</h1>" +
+		"<h1>CoCo Aggregate Healthcheck</h1>" +
 		"<table>" +
 		"%s" +
 		"</table>" +

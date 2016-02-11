@@ -72,6 +72,7 @@ func (r *ServiceRegistry) watchServices() {
 			time.Sleep(10 * time.Second)
 			continue
 		}
+		log.Printf("DEBUG - Change detected under %v in etcd.", servicesKeyPre)
 		r.redefineServiceList()
 
 		// adding new services, not touching existing
@@ -105,11 +106,13 @@ func (r *ServiceRegistry) watchCategories() {
 			time.Sleep(10 * time.Second)
 			continue
 		}
+		log.Printf("DEBUG - Change detected under %v in etcd.", categoriesKeyPre)
 		r.redefineCategoryList()
 	}
 }
 
 func (r *ServiceRegistry) redefineServiceList() {
+	log.Printf("DEBUG - Redefining service list.")
 	services := make(map[string]Service)
 	servicesResp, err := r.etcd.Get(context.Background(), servicesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
@@ -145,7 +148,7 @@ func (r *ServiceRegistry) redefineServiceList() {
 			if !categoriesResp.Node.Dir {
 				categories = strings.Split(categoriesResp.Node.Value, ",")
 			} else {
-				log.Printf("WARN - Failed to get app category from %v: %v. Using default 'default'", serviceNode.Key, err.Error())
+				log.Printf("WARN - Failed to get app category from %v: %v. Using default 'default'", categoriesResp.Node.Key, err.Error())
 				categories = append(categories, "default")
 			}
 		}
@@ -155,6 +158,7 @@ func (r *ServiceRegistry) redefineServiceList() {
 }
 
 func (r *ServiceRegistry) redefineCategoryList() {
+	log.Printf("DEBUG - Redefining category list.")
 	categories := make(map[string]Category)
 	categoriesResp, err := r.etcd.Get(context.Background(), categoriesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
@@ -188,9 +192,9 @@ func (r *ServiceRegistry) redefineCategoryList() {
 		if err != nil {
 			log.Printf("WARN - Failed to get resilient setting from %v: %v. Using default: false.\n", categoryNode.Key, err.Error())
 		} else {
-			resilientBool, err := strconv.ParseBool(periodResp.Node.Value)
+			resilientBool, err := strconv.ParseBool(resilientResp.Node.Value)
 			if err != nil {
-				log.Printf("WARN - Error reading resilient setting '%v'. Using default: false.", resilientResp.Node.Value)
+				log.Printf("WARN - Error reading resilient setting '%v' at key %v. Using default: false.", resilientResp.Node.Value, resilientResp.Node.Key)
 				resilientBool = false
 			}
 			resilient = resilientBool
@@ -198,6 +202,7 @@ func (r *ServiceRegistry) redefineCategoryList() {
 
 		categories[name] = Category{Name: name, Period: period, IsResilient: resilient}
 	}
+	log.Printf("DEBUG - Categories are: %v", categories)
 	r.categories = categories
 }
 

@@ -27,3 +27,4 @@ Binary
 ssh -D 2323 -N core@$FLEETCTL_TUNNEL
 ./coco-aggregate-healthcheck --socks-proxy localhost:2323 --etcd-peers "http://localhost:2379" --key-prefix "/ft/healthcheck" --vulcand "localhost:8080" --graphite-host "graphite.ft.com" --graphite-port "2003" --environment "local"
 ```
+

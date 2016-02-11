@@ -23,6 +23,6 @@ CMD /coco-aggregate-healthcheck \
 	--etcd-peers "$ETCD_PEERS" \
 	--vulcand "$VULCAND_ADDRESS" \
 	--socks-proxy "$SOCKS_PROXY" \
-    --graphite-host "$GRAPHITE_HOST" \
-    --graphite-port "$GRAPHITE_PORT" \
-    --environment "$ENVIRONMENT"
+#    --graphite-host "$GRAPHITE_HOST" \
+#    --graphite-port "$GRAPHITE_PORT" \
+#    --environment "$ENVIRONMENT"

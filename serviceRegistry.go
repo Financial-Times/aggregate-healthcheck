@@ -45,7 +45,9 @@ type MeasuredService struct {
 }
 
 func NewMeasuredService(service *Service) MeasuredService {
-	return MeasuredService{service, NewCachedHealth()}
+	cachedHealth := NewCachedHealth()
+	go cachedHealth.maintainLatest();
+	return MeasuredService{service, cachedHealth}
 }
 
 type ServiceRegistry struct {
@@ -89,7 +91,6 @@ func (r *ServiceRegistry) updateMeasuredServiceList() {
 			if ok {
 				mService.cachedHealth.terminate <- true
 			}
-//			service := r.services[key];
 			newMService := NewMeasuredService(&service)
 			r.measuredServices[service.Name] = newMService
 			go r.scheduleCheck(&newMService, time.NewTimer(0))
@@ -252,7 +253,7 @@ func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *
 		fmt.Sprintf("Checks the health of %v", mService.service.Name),
 		true,
 		NewServiceHealthCheck(*mService.service, registry.checker))
-	log.Printf("DEBUG - got new health results for %v\n", mService.service.Name)
+	log.Printf("DEBUG - got new health results for [%v]. status: [%v]\n", mService.service.Name, healthResult.Ok)
 
 	// write to cache
 	mService.cachedHealth.latestWrite <- healthResult

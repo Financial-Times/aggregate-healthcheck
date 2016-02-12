@@ -11,18 +11,18 @@ type CachedHealth struct {
 }
 
 func NewCachedHealth() *CachedHealth {
-	latestRead := make(chan fthealth.HealthResult)
-	latestWrite := make(chan fthealth.HealthResult)
+	latestRead := make(<-chan fthealth.HealthResult)
+	latestWrite := make(chan<- fthealth.HealthResult)
 	terminate := make(chan bool)
 	return &CachedHealth{latestRead, latestWrite, terminate}
 }
 
-func (c CachedHealth) maintainLatest(latestRead chan<- fthealth.HealthResult, latestWrite <-chan fthealth.HealthResult) {
+func (c *CachedHealth) maintainLatest() {
 	var latest fthealth.HealthResult
 	for {
 		select {
-		case latest = <-latestWrite:
-		case latestRead <- latest:
+		case latest = <-c.latestResult:
+		case c.latestWrite <- latest:
 		}
 	}
 }

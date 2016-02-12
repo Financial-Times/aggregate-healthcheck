@@ -81,8 +81,10 @@ func (r *ServiceRegistry) watchServices() {
 
 func (r *ServiceRegistry) updateMeasuredServiceList() {
 	// adding new services, not touching existing
+	var debugLines []string
 	for _, service := range r.services {
 		if mService, ok := r.measuredServices[service.Name]; !ok || !reflect.DeepEqual(service, r.measuredServices[service.Name].service) {
+			debugLines = append(debugLines, fmt.Sprintf("    %v\n", service.Name))
 			if ok {
 				mService.cachedHealth.terminate <- true
 			}
@@ -91,14 +93,26 @@ func (r *ServiceRegistry) updateMeasuredServiceList() {
 			go r.scheduleCheck(newMService, time.NewTimer(0))
 		}
 	}
+	sort.Strings(debugLines)
+	log.Printf("DEBUG - Measured service to be (re-)created:\n%v", debugLines)
 
 	// removing services that don't exist, not toching the rest
-	for _, measuredService := range r.measuredServices {
-		if _, ok := r.services[measuredService.service.Name]; !ok {
-			delete(r.measuredServices, measuredService.service.Name)
-			measuredService.cachedHealth.terminate <- true
+	debugLines = []string {}
+	for _, mService := range r.measuredServices {
+		if _, ok := r.services[mService.service.Name]; !ok {
+			debugLines = append(debugLines, fmt.Sprintf("    %v\n", mService.service.Name))
+			delete(r.measuredServices, mService.service.Name)
+			mService.cachedHealth.terminate <- true
 		}
 	}
+	sort.Strings(debugLines)
+	log.Printf("DEBUG - Measured service to be removed:\n%v", debugLines)
+
+	debugLines = []string {}
+	for _, mService := range r.measuredServices {
+		debugLines = append(debugLines, fmt.Sprintf("    %v\n", mService.service.Name))
+	}
+	log.Printf("DEBUG - All measured services:\n%v", debugLines)
 }
 
 func (r *ServiceRegistry) watchCategories() {
@@ -225,11 +239,13 @@ func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *
 	// wait
 	select {
 	case <- mService.cachedHealth.terminate:
+		log.Printf("DEBUG - Terminating schedule for %v\n", mService.service.Name)
 		return
 	case <-timer.C:
 	}
 
 	// check
+	log.Printf("DEBUG - Checking %v\n", mService.service.Name)
 	healthResult := fthealth.RunCheck(mService.service.Name,
 		fmt.Sprintf("Checks the health of %v", mService.service.Name),
 		true,

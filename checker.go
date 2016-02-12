@@ -92,6 +92,7 @@ func NewServiceHealthCheck(service Service, checker HealthChecker) fthealth.Chec
 }
 
 func NewCheckFromSingularHealthResult(healthResult fthealth.HealthResult) fthealth.Check {
+	// TODO tackle situation when there's no result yet. Not true, not false, can't omit, do something.
 	check := healthResult.Checks[0]
 	return fthealth.Check{
 		BusinessImpact:   check.BusinessImpact,

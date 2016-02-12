@@ -11,6 +11,7 @@ import (
 	"reflect"
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 "fmt"
+"sort"
 )
 
 const (
@@ -157,7 +158,17 @@ func (r *ServiceRegistry) redefineServiceList() {
 		}
 		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: path, Categories: categories}
 	}
-	log.Printf("DEBUG - Services are: %v", services)
+
+	var debugList []string
+	for _, service := range services {
+		debugList = append(debugList, fmt.Sprintf("    %v: %v\n", service.Name, service.Categories))
+	}
+	sort.Strings(debugList)
+	debug := "DEBUG - Services are:\n"
+	for _, debugElem := range debugList {
+		debug += debugElem
+	}
+	log.Print(debug)
 	r.services = services
 }
 

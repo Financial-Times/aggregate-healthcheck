@@ -39,12 +39,12 @@ type Category struct {
 }
 
 type MeasuredService struct {
-	service         Service
+	service         *Service
 	cachedHealth    *CachedHealth
 	//bufferedHealths *BufferedHealths //up to 60 healthiness measurements to be buffered and sent at once graphite
 }
 
-func NewMeasuredService(service Service) MeasuredService {
+func NewMeasuredService(service *Service) MeasuredService {
 	return MeasuredService{service, NewCachedHealth()}
 }
 
@@ -82,13 +82,15 @@ func (r *ServiceRegistry) watchServices() {
 func (r *ServiceRegistry) updateMeasuredServiceList() {
 	// adding new services, not touching existing
 	var debugLines []string
-	for _, service := range r.services {
+	for key, _ := range r.services {
+		service := r.services[key];
 		if mService, ok := r.measuredServices[service.Name]; !ok || !reflect.DeepEqual(service, r.measuredServices[service.Name].service) {
 			debugLines = append(debugLines, fmt.Sprintf("    %v\n", service.Name))
 			if ok {
 				mService.cachedHealth.terminate <- true
 			}
-			newMService := NewMeasuredService(service)
+//			service := r.services[key];
+			newMService := NewMeasuredService(&service)
 			r.measuredServices[service.Name] = newMService
 			go r.scheduleCheck(&newMService, time.NewTimer(0))
 		}
@@ -249,7 +251,7 @@ func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *
 	healthResult := fthealth.RunCheck(mService.service.Name,
 		fmt.Sprintf("Checks the health of %v", mService.service.Name),
 		true,
-		NewServiceHealthCheck(mService.service, registry.checker))
+		NewServiceHealthCheck(*mService.service, registry.checker))
 	log.Printf("DEBUG - got new health results for %v\n", mService.service.Name)
 
 	// write to cache
@@ -262,7 +264,7 @@ func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *
 	//default:
 	//}
 
-	waitDuration := registry.findShortestPeriod(mService.service)
+	waitDuration := registry.findShortestPeriod(*mService.service)
 	go registry.scheduleCheck(mService, time.NewTimer(waitDuration))
 }
 

@@ -39,13 +39,13 @@ type Category struct {
 }
 
 type MeasuredService struct {
-	service         *Service
+	service         Service
 	cachedHealth    *CachedHealth
 	//bufferedHealths *BufferedHealths //up to 60 healthiness measurements to be buffered and sent at once graphite
 }
 
-func NewMeasuredService(service *Service) *MeasuredService {
-	return &MeasuredService{service, NewCachedHealth()}
+func NewMeasuredService(service Service) MeasuredService {
+	return MeasuredService{service, NewCachedHealth()}
 }
 
 type ServiceRegistry struct {
@@ -88,9 +88,9 @@ func (r *ServiceRegistry) updateMeasuredServiceList() {
 			if ok {
 				mService.cachedHealth.terminate <- true
 			}
-			newMService := NewMeasuredService(&service)
-			r.measuredServices[service.Name] = *newMService;
-			go r.scheduleCheck(newMService, time.NewTimer(0))
+			newMService := NewMeasuredService(service)
+			r.measuredServices[service.Name] = newMService
+			go r.scheduleCheck(&newMService, time.NewTimer(0))
 		}
 	}
 	sort.Strings(debugLines)
@@ -249,11 +249,12 @@ func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *
 	healthResult := fthealth.RunCheck(mService.service.Name,
 		fmt.Sprintf("Checks the health of %v", mService.service.Name),
 		true,
-		NewServiceHealthCheck(*mService.service, registry.checker))
+		NewServiceHealthCheck(mService.service, registry.checker))
 	log.Printf("DEBUG - got new health results for %v\n", mService.service.Name)
 
 	// write to cache
 	mService.cachedHealth.latestWrite <- healthResult
+
 
 	// write to graphite buffer
 	//select {
@@ -261,7 +262,7 @@ func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *
 	//default:
 	//}
 
-	waitDuration := registry.findShortestPeriod(*mService.service)
+	waitDuration := registry.findShortestPeriod(mService.service)
 	go registry.scheduleCheck(mService, time.NewTimer(waitDuration))
 }
 

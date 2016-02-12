@@ -6,7 +6,6 @@ import (
 	"fmt"
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -32,7 +31,6 @@ func NewHttpHealthChecker(client *http.Client) *HttpHealthChecker {
 }
 
 func (c *HttpHealthChecker) Check(service Service) (string, error) {
-	log.Printf("INFO Sending client request to [%v]: [http://%s%s]", service.Name, service.Host, service.Path)
 	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s%s", service.Host, service.Path), nil)
 	if err != nil {
 		return "", errors.New("Error constructing healthcheck request: " + err.Error())

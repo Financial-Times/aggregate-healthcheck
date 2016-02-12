@@ -253,7 +253,7 @@ func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *
 		fmt.Sprintf("Checks the health of %v", mService.service.Name),
 		true,
 		NewServiceHealthCheck(*mService.service, registry.checker))
-	log.Printf("DEBUG - got new health results for [%v]. status: [%v]\n", mService.service.Name, healthResult.Ok)
+	log.Printf("DEBUG - Received new health results for [%v]. name: %v, status: [%v], nChecks: %v, firstCheckStatus: %v, output: %v", mService.service.Name, healthResult.Name, healthResult.Ok, len(healthResult.Checks), healthResult.Checks[0].Ok, healthResult.Checks[0].Output)
 
 	// write to cache
 	mService.cachedHealth.latestWrite <- healthResult

@@ -48,6 +48,10 @@ func main() {
 	registry := NewCocoServiceRegistry(etcdKeysApi, *vulcandAddr, checker)
 	registry.redefineCategoryList()
 	registry.redefineServiceList()
+	registry.updateMeasuredServiceList()
+
+	log.Printf("DEBUG - Nr of registered services: [%v]. Nr of registered categories: [%v]", len(registry.services), len(registry.categories) )
+
 	go registry.watchServices()
 	go registry.watchCategories()
 

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
-	_ "log"
+	"log"
 	"net/http"
 )
 
@@ -25,8 +25,10 @@ func NewController(registry *ServiceRegistry) *controller {
 
 func (c controller) combineHealthResults() fthealth.HealthResult {
 	var allChecksFromResults []fthealth.Check
+	log.Printf("DEBUG - Combining health results.", )
 	for _, mService := range c.registry.measuredServices {
 		healthResult := <-mService.cachedHealth.latestResult
+		log.Printf("DEBUG - Health result for service [%v] is: [%v].", mService.service.Name, healthResult.Ok)
 		checkFromResult := NewCheckFromSingularHealthResult(healthResult)
 		allChecksFromResults = append(allChecksFromResults, checkFromResult)
 	}

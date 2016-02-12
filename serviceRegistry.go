@@ -53,13 +53,13 @@ type ServiceRegistry struct {
 	checker          HealthChecker
 	services         map[string]Service
 	categories       map[string]Category
-	measuredServices map[string]*MeasuredService
+	measuredServices map[string]MeasuredService
 }
 
 func NewCocoServiceRegistry(etcd client.KeysAPI, vulcandAddr string, checker HealthChecker) *ServiceRegistry {
 	services := make(map[string]Service)
 	categories := make(map[string]Category)
-	measuredServices := make(map[string]*MeasuredService)
+	measuredServices := make(map[string]MeasuredService)
 	return &ServiceRegistry{etcd, vulcandAddr, checker, services, categories, measuredServices}
 }
 
@@ -74,25 +74,28 @@ func (r *ServiceRegistry) watchServices() {
 		}
 		log.Printf("DEBUG - Change detected under %v in etcd.", servicesKeyPre)
 		r.redefineServiceList()
+		r.updateMeasuredServiceList()
+	}
+}
 
-		// adding new services, not touching existing
-		for _, service := range r.services {
-			if !reflect.DeepEqual(service, r.measuredServices[service.Name].service) {
-				if mService, ok := r.measuredServices[service.Name]; ok {
-					mService.cachedHealth.terminate <- true
-				}
-				newMService := NewMeasuredService(&service)
-				r.measuredServices[service.Name] = newMService;
-				go r.scheduleCheck(newMService, time.NewTimer(0))
+func (r *ServiceRegistry) updateMeasuredServiceList() {
+	// adding new services, not touching existing
+	for _, service := range r.services {
+		if mService, ok := r.measuredServices[service.Name]; !ok || !reflect.DeepEqual(service, r.measuredServices[service.Name].service) {
+			if ok {
+				mService.cachedHealth.terminate <- true
 			}
+			newMService := NewMeasuredService(&service)
+			r.measuredServices[service.Name] = *newMService;
+			go r.scheduleCheck(newMService, time.NewTimer(0))
 		}
+	}
 
-		// removing services that don't exist, not toching the rest
-		for _, measuredService := range r.measuredServices {
-			if _, ok := r.services[measuredService.service.Name]; !ok {
-				delete(r.measuredServices, measuredService.service.Name)
-				measuredService.cachedHealth.terminate <- true
-			}
+	// removing services that don't exist, not toching the rest
+	for _, measuredService := range r.measuredServices {
+		if _, ok := r.services[measuredService.service.Name]; !ok {
+			delete(r.measuredServices, measuredService.service.Name)
+			measuredService.cachedHealth.terminate <- true
 		}
 	}
 }
@@ -125,10 +128,10 @@ func (r *ServiceRegistry) redefineServiceList() {
 	}
 	for _, serviceNode := range servicesResp.Node.Nodes {
 		if !serviceNode.Dir {
-			log.Printf("ERROR - %v is not a directory", serviceNode.Key)
-			return
+			log.Printf("WARN - %v is not a directory", serviceNode.Key)
+			continue
 		}
-		name := filepath.Base(servicesResp.Node.Key)
+		name := filepath.Base(serviceNode.Key)
 		path := defaultPath
 		pathResp, err := r.etcd.Get(context.Background(), serviceNode.Key+pathSuffix, &client.GetOptions{Sort: true})
 		if err != nil {
@@ -154,6 +157,7 @@ func (r *ServiceRegistry) redefineServiceList() {
 		}
 		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: path, Categories: categories}
 	}
+	log.Printf("DEBUG - Services are: %v", services)
 	r.services = services
 }
 
@@ -171,8 +175,8 @@ func (r *ServiceRegistry) redefineCategoryList() {
 	}
 	for _, categoryNode := range categoriesResp.Node.Nodes {
 		if !categoryNode.Dir {
-			log.Printf("ERROR - %v is not a directory", categoryNode.Key)
-			return
+			log.Printf("WARN - %v is not a directory", categoryNode.Key)
+			continue
 		}
 		name := filepath.Base(categoryNode.Key)
 		periodResp, err := r.etcd.Get(context.Background(), categoryNode.Key+periodKeySuffix, &client.GetOptions{Sort: true})

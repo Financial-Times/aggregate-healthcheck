@@ -22,7 +22,8 @@ const (
 	pathSuffix       = "/path"
 	categoriesSuffix = "/categories"
 	defaultDuration  = time.Duration(60 * time.Second)
-	defaultPath      = "__health"
+	pathPre          = "/health/%s%s"
+	defaultPath      = "/__health"
 )
 
 type Service struct {
@@ -173,7 +174,7 @@ func (r *ServiceRegistry) redefineServiceList() {
 				categories = append(categories, "default")
 			}
 		}
-		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: path, Categories: categories}
+		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: fmt.Sprintf(pathPre, name, path), Categories: categories}
 	}
 
 	var debugList []string
@@ -256,8 +257,7 @@ func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *
 	log.Printf("DEBUG - Received new health results for [%v]. name: %v, status: [%v], nChecks: %v, firstCheckStatus: %v, output: %v", mService.service.Name, healthResult.Name, healthResult.Ok, len(healthResult.Checks), healthResult.Checks[0].Ok, healthResult.Checks[0].Output)
 
 	// write to cache
-	mService.cachedHealth.latestWrite <- healthResult
-
+	mService.cachedHealth.toWriteToCache <- healthResult
 
 	// write to graphite buffer
 	//select {

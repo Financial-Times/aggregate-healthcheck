@@ -27,7 +27,7 @@ func (c controller) combineHealthResults() fthealth.HealthResult {
 	var allChecksFromResults []fthealth.Check
 	log.Printf("DEBUG - Combining health results.", )
 	for _, mService := range c.registry.measuredServices {
-		healthResult := <-mService.cachedHealth.latestResult
+		healthResult := <-mService.cachedHealth.toReadFromCache
 		log.Printf("DEBUG - Health result for service [%v] is: [%v].", mService.service.Name, healthResult.Ok)
 		checkFromResult := NewCheckFromSingularHealthResult(healthResult)
 		allChecksFromResults = append(allChecksFromResults, checkFromResult)

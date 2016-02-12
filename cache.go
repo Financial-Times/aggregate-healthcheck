@@ -5,24 +5,24 @@ import (
 )
 
 type CachedHealth struct {
-	latestResult <-chan fthealth.HealthResult
-	latestWrite  chan<- fthealth.HealthResult
-	terminate    chan bool
+	toWriteToCache  chan fthealth.HealthResult
+	toReadFromCache chan fthealth.HealthResult
+	terminate       chan bool
 }
 
 func NewCachedHealth() *CachedHealth {
-	latestRead := make(<-chan fthealth.HealthResult)
-	latestWrite := make(chan<- fthealth.HealthResult)
+	a := make(chan fthealth.HealthResult)
+	b := make(chan fthealth.HealthResult)
 	terminate := make(chan bool)
-	return &CachedHealth{latestRead, latestWrite, terminate}
+	return &CachedHealth{a, b, terminate}
 }
 
 func (c *CachedHealth) maintainLatest() {
-	var latest fthealth.HealthResult
+	var aux fthealth.HealthResult
 	for {
 		select {
-		case latest = <-c.latestResult:
-		case c.latestWrite <- latest:
+		case aux = <-c.toWriteToCache:
+		case c.toReadFromCache <- aux:
 		}
 	}
 }

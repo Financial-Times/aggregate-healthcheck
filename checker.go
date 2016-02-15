@@ -91,21 +91,16 @@ func NewServiceHealthCheck(service Service, checker HealthChecker) fthealth.Chec
 	}
 }
 
-func NewCheckFromSingularHealthResult(healthResult fthealth.HealthResult) fthealth.Check {
-	// TODO tackle situation when there's no result yet. Not true, not false, can't omit, do something.
+func NewCheckFromSingularHealthResult(healthResult fthealth.HealthResult) fthealth.CheckResult {
 	check := healthResult.Checks[0]
-	return fthealth.Check{
-		BusinessImpact:   check.BusinessImpact,
-		Name:             check.Name,
-		PanicGuide:       check.PanicGuide,
-		Severity:         check.Severity,
+	return fthealth.CheckResult{
+		BusinessImpact: check.BusinessImpact,
+		Output: check.Output,
+		LastUpdated: check.LastUpdated,
+		Name: check.Name,
+		Ok: check.Ok,
+		PanicGuide: check.PanicGuide,
+		Severity: check.Severity,
 		TechnicalSummary: check.TechnicalSummary,
-		Checker:
-		func() (string, error) {
-			if healthResult.Ok {
-				return "", nil
-			}
-			return "", errors.New(healthResult.Checks[0].Output)
-		},
 	}
 }

@@ -22,17 +22,75 @@ func NewController(registry *ServiceRegistry) *controller {
 }
 
 func (c controller) combineHealthResultsFor(categories []string) fthealth.HealthResult {
-	var allChecksFromResults []fthealth.Check
+	checkResults := c.healthResultsToCheckResults(categories)
+	return c.computeHealthResult(categories, checkResults)
+}
+
+func (c controller) healthResultsToCheckResults(categories []string) []fthealth.CheckResult {
 	log.Printf("DEBUG - Combining health results.", )
+	var checkResults []fthealth.CheckResult
 	for _, mService := range c.registry.measuredServices {
-		if containsAtLeastOneFrom(mService.service.Categories, categories) {
-			healthResult := <-mService.cachedHealth.toReadFromCache
-			//log.Printf("DEBUG - Health result for service [%v] is: [%v].", mService.service.Name, healthResult.Ok)
-			checkFromResult := NewCheckFromSingularHealthResult(healthResult)
-			allChecksFromResults = append(allChecksFromResults, checkFromResult)
+		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
+			continue
+		}
+		healthResult := <-mService.cachedHealth.toReadFromCache
+		if len(healthResult.Checks) == 0 {
+			continue
+		}
+
+		checkResult := NewCheckFromSingularHealthResult(healthResult)
+		checkResults = append(checkResults, checkResult)
+	}
+	return checkResults
+}
+
+func (c controller) computeHealthResult(categories []string, checkResults []fthealth.CheckResult) fthealth.HealthResult {
+	intersectingCategories := getIntersectingCategories(categories, c.registry.categories)
+	resilient := isResilient(intersectingCategories, c.registry.categories)
+	finalOk := true
+	finalSeverity := 100
+	if resilient {
+		resilientSeverities := make(map[string]int)
+		for _, result := range checkResults {
+			serviceGroupName := result.Name[0:strings.LastIndex(result.Name, "-")]
+			if _, ok := resilientSeverities[serviceGroupName]; ok {
+				if resilientSeverities[serviceGroupName] >= 0 && result.Ok {
+					resilientSeverities[serviceGroupName] = -1 //means ok
+				}
+			} else {
+				if result.Ok {
+					resilientSeverities[serviceGroupName] = -1
+				} else {
+					resilientSeverities[serviceGroupName] = int(result.Severity) //means not ok
+				}
+			}
+		}
+		for _, resilientSeverity := range resilientSeverities {
+			if resilientSeverity >= 0 {
+				finalOk = false
+				if resilientSeverity < finalSeverity {
+					finalSeverity = resilientSeverity
+				}
+			}
+		}
+	} else {
+		for _, result := range checkResults {
+			if !result.Ok {
+				finalOk = false
+				if int(result.Severity) < finalSeverity {
+					finalSeverity = int(result.Severity)
+				}
+			}
 		}
 	}
-	return fthealth.RunCheck("Cluster health", "Checks the health of the whole cluster", true, allChecksFromResults...)
+	return fthealth.HealthResult{
+		Checks: checkResults,
+		Description: "Checks the health of the whole cluster.",
+		Name: "Cluster health",
+		SchemaVersion: 1,
+		Ok: finalOk,
+		Severity: uint8(finalSeverity),
+	}
 }
 
 func (c controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
@@ -44,33 +102,10 @@ func (c controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
-	queriedCategories := parseCategories(r.URL)
-
-	healthResults := make(map[string]bool)
-	for _, mService := range c.registry.measuredServices {
-		serviceCategories := mService.service.Categories
-		queriedServiceCategories := getMatchingCategories(serviceCategories, queriedCategories)
-		if len(queriedServiceCategories) == 0 {
-			continue
-		}
-
-		healthResult := <-mService.cachedHealth.toReadFromCache
-		serviceName := mService.service.Name
-		if isResilient(queriedServiceCategories, c.registry.categories) {
-			serviceGroupName := serviceName[0:strings.LastIndex(serviceName, "-")]
-			if _, ok := healthResults[serviceGroupName]; !ok || healthResult.Ok {
-				healthResults[serviceGroupName] = healthResult.Ok
-			}
-		} else {
-			healthResults[serviceName] = healthResult.Ok
-		}
-	}
-
-	for _, ok := range healthResults {
-		if !ok {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return
-		}
+	categories := parseCategories(r.URL)
+	healthResults := c.combineHealthResultsFor(categories)
+	if !healthResults.Ok {
+		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 }
 
@@ -142,13 +177,11 @@ func containsAtLeastOneFrom(s []string, e []string) bool {
 	return false
 }
 
-func getMatchingCategories(s []string, e []string) []string {
+func getIntersectingCategories(s []string, c map[string]Category) []string {
 	result := make([]string, 0)
 	for _, a := range s {
-		for _, b := range e {
-			if a == b {
-				result = append(result, a)
-			}
+		if _, ok := c[a]; ok {
+			result = append(result, a)
 		}
 	}
 	return result

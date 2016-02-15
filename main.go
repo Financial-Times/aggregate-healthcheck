@@ -53,11 +53,14 @@ func main() {
 	go registry.watchServices()
 	go registry.watchCategories()
 
-	handler := NewController(registry).handle
+	controller := NewController(registry)
 
+	handler := controller.handle
+	gtgHandler := controller.handleGoodToGo
 	r := mux.NewRouter()
 	r.HandleFunc("/", handler)
 	r.HandleFunc("/__health", handler)
+	r.HandleFunc("/__gtg", gtgHandler)
 	err = http.ListenAndServe(":8080", handlers.LoggingHandler(os.Stdout, r))
 	if err != nil {
 		panic(err)

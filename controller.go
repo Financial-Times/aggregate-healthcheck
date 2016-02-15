@@ -28,7 +28,7 @@ func NewController(registry *ServiceRegistry) *controller {
 	//go graphiteFeeder.maintainGraphiteFeed(bufferGraphite, graphiteTicker)
 }
 
-func (c controller) combineHealthResults(categories []string) fthealth.HealthResult {
+func (c controller) combineHealthResultsFor(categories []string) fthealth.HealthResult {
 	var allChecksFromResults []fthealth.Check
 	log.Printf("DEBUG - Combining health results.", )
 	for _, mService := range c.registry.measuredServices {
@@ -50,9 +50,40 @@ func (c controller) handle(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (c controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
+	categories := parseCategories(r.URL)
+
+	healthResults := make(map[string]bool)
+	for _, mService := range c.registry.measuredServices {
+		if !containsAtLeastOneFrom(mService.service.Categories, categories) {
+			continue
+		}
+		healthResult := <-mService.cachedHealth.toReadFromCache
+
+		if isResilient(categories, c.registry.categories) {
+
+			serviceName := mService.service.Name
+			serviceGroupName := serviceName[0:strings.LastIndex(serviceName, "-")]
+
+			if _, ok := healthResults[serviceGroupName]; !ok || healthResult.Ok {
+				healthResults[serviceGroupName] = healthResult.Ok
+			}
+		} else {
+			healthResults[mService.service.Name] = healthResult.Ok
+		}
+	}
+
+	for _, t := range healthResults {
+		if !t {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+	}
+}
+
 func (c controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
-	health := c.combineHealthResults(categories)
+	health := c.combineHealthResultsFor(categories)
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	err := enc.Encode(health)
@@ -64,7 +95,7 @@ func (c controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 func (c controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	w.Header().Add("Content-Type", "text/html")
-	health := c.combineHealthResults(categories)
+	health := c.combineHealthResultsFor(categories)
 	htmlTemplate := "<!DOCTYPE html>" +
 		"<head>" +
 		"<title>CoCo Aggregate Healthcheck</title>" +
@@ -116,6 +147,16 @@ func containsAtLeastOneFrom(s []string, e []string) bool {
 		}
 	}
 	return false
+}
+
+//returns true, only if all categoryNames are considered resilient.
+func isResilient(categoryNames []string, allCategories map[string]Category) bool {
+	for _, c := range categoryNames {
+		if !allCategories[c].IsResilient {
+			return false
+		}
+	}
+	return true
 }
 
 type ByName []fthealth.CheckResult

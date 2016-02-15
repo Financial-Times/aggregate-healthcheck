@@ -10,8 +10,8 @@ import (
 	"time"
 	"reflect"
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
-"fmt"
-"sort"
+	"fmt"
+	"sort"
 )
 
 const (
@@ -41,14 +41,15 @@ type Category struct {
 
 type MeasuredService struct {
 	service         *Service
-	cachedHealth    *CachedHealth
-	//bufferedHealths *BufferedHealths //up to 60 healthiness measurements to be buffered and sent at once graphite
+	cachedHealth    *CachedHealth    //latest healthiness measurement
+	bufferedHealths *BufferedHealths //up to 60 healthiness measurements to be buffered and sent at once graphite
 }
 
 func NewMeasuredService(service *Service) MeasuredService {
 	cachedHealth := NewCachedHealth()
+	bufferedHealths := NewBufferedHealths()
 	go cachedHealth.maintainLatest();
-	return MeasuredService{service, cachedHealth}
+	return MeasuredService{service, cachedHealth, bufferedHealths}
 }
 
 type ServiceRegistry struct {
@@ -249,21 +250,21 @@ func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *
 	}
 
 	// check
-	log.Printf("DEBUG - Checking %v\n", mService.service.Name)
+	//log.Printf("DEBUG - Checking %v\n", mService.service.Name)
 	healthResult := fthealth.RunCheck(mService.service.Name,
 		fmt.Sprintf("Checks the health of %v", mService.service.Name),
 		true,
 		NewServiceHealthCheck(*mService.service, registry.checker))
-	log.Printf("DEBUG - Received new health results for [%v]. name: %v, status: [%v], nChecks: %v, firstCheckStatus: %v, output: %v", mService.service.Name, healthResult.Name, healthResult.Ok, len(healthResult.Checks), healthResult.Checks[0].Ok, healthResult.Checks[0].Output)
+	//log.Printf("DEBUG - Received new health results for [%v]. name: %v, status: [%v], nChecks: %v, firstCheckStatus: %v, output: %v", mService.service.Name, healthResult.Name, healthResult.Ok, len(healthResult.Checks), healthResult.Checks[0].Ok, healthResult.Checks[0].Output)
 
 	// write to cache
 	mService.cachedHealth.toWriteToCache <- healthResult
 
 	// write to graphite buffer
-	//select {
-	//case mService.bufferedHealths.buffer <- healthResult:
-	//default:
-	//}
+	select {
+	case mService.bufferedHealths.buffer <- healthResult:
+	default:
+	}
 
 	waitDuration := registry.findShortestPeriod(*mService.service)
 	go registry.scheduleCheck(mService, time.NewTimer(waitDuration))

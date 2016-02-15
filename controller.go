@@ -19,13 +19,6 @@ type controller struct {
 
 func NewController(registry *ServiceRegistry) *controller {
 	return &controller{registry}
-
-	// set up channels for buffering data to be sent to Graphite
-	//bufferGraphite := make(chan *TimedHealth, 10)
-
-	// start checking health and activate handlers to respond on read signals
-	//graphiteTicker := time.NewTicker(79 * time.Second)
-	//go graphiteFeeder.maintainGraphiteFeed(bufferGraphite, graphiteTicker)
 }
 
 func (c controller) combineHealthResultsFor(categories []string) fthealth.HealthResult {

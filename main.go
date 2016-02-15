@@ -18,9 +18,9 @@ func main() {
 		socksProxy   = flag.String("socks-proxy", "", "Use specified SOCKS proxy (e.g. localhost:2323)")
 		etcdPeers    = flag.String("etcd-peers", "http://localhost:4001", "Comma-separated list of addresses of etcd endpoints to connect to")
 		vulcandAddr  = flag.String("vulcand", "localhost:8080", "Vulcand address")
-		//graphiteHost = flag.String("graphite-host", "graphite.ft.com", "Graphite host address")
-		//graphitePort = flag.Int("graphite-port", 2003, "Graphite port")
-		//environment  = flag.String("environment", "local", "Environment tag")
+		graphiteHost = flag.String("graphite-host", "graphite.ft.com", "Graphite host address")
+		graphitePort = flag.Int("graphite-port", 2003, "Graphite port")
+		environment  = flag.String("environment", "local", "Environment tag")
 	)
 	flag.Parse()
 
@@ -43,7 +43,6 @@ func main() {
 	etcdKeysApi := client.NewKeysAPI(etcd)
 
 	checker := NewHttpHealthChecker(&http.Client{Transport: transport, Timeout: 10 * time.Second})
-	//graphiteFeeder := NewGraphiteFeeder(*graphiteHost, *graphitePort, *environment)
 
 	registry := NewCocoServiceRegistry(etcdKeysApi, *vulcandAddr, checker)
 	registry.redefineCategoryList()
@@ -52,6 +51,9 @@ func main() {
 
 	go registry.watchServices()
 	go registry.watchCategories()
+
+	graphiteFeeder := NewGraphiteFeeder(*graphiteHost, *graphitePort, *environment, registry)
+	go graphiteFeeder.feed()
 
 	controller := NewController(registry)
 

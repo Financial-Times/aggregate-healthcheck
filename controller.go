@@ -27,7 +27,7 @@ func (c controller) combineHealthResultsFor(categories []string) fthealth.Health
 	for _, mService := range c.registry.measuredServices {
 		if containsAtLeastOneFrom(mService.service.Categories, categories) {
 			healthResult := <-mService.cachedHealth.toReadFromCache
-			log.Printf("DEBUG - Health result for service [%v] is: [%v].", mService.service.Name, healthResult.Ok)
+			//log.Printf("DEBUG - Health result for service [%v] is: [%v].", mService.service.Name, healthResult.Ok)
 			checkFromResult := NewCheckFromSingularHealthResult(healthResult)
 			allChecksFromResults = append(allChecksFromResults, checkFromResult)
 		}
@@ -35,7 +35,7 @@ func (c controller) combineHealthResultsFor(categories []string) fthealth.Health
 	return fthealth.RunCheck("Cluster health", "Checks the health of the whole cluster", true, allChecksFromResults...)
 }
 
-func (c controller) handle(w http.ResponseWriter, r *http.Request) {
+func (c controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Accept") == "application/json" {
 		c.jsonHandler(w, r)
 	} else {

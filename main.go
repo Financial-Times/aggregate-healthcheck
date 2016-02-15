@@ -57,7 +57,7 @@ func main() {
 
 	controller := NewController(registry)
 
-	handler := controller.handle
+	handler := controller.handleHealthcheck
 	gtgHandler := controller.handleGoodToGo
 	r := mux.NewRouter()
 	r.HandleFunc("/", handler)

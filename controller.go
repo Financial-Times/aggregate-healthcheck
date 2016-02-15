@@ -51,30 +51,30 @@ func (c controller) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 func (c controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
-	categories := parseCategories(r.URL)
+	queriedCategories := parseCategories(r.URL)
 
 	healthResults := make(map[string]bool)
 	for _, mService := range c.registry.measuredServices {
-		if !containsAtLeastOneFrom(mService.service.Categories, categories) {
+		serviceCategories := mService.service.Categories
+		queriedServiceCategories := getMatchingCategories(serviceCategories, queriedCategories)
+		if len(queriedServiceCategories) == 0 {
 			continue
 		}
+
 		healthResult := <-mService.cachedHealth.toReadFromCache
-
-		if isResilient(categories, c.registry.categories) {
-
-			serviceName := mService.service.Name
+		serviceName := mService.service.Name
+		if isResilient(queriedServiceCategories, c.registry.categories) {
 			serviceGroupName := serviceName[0:strings.LastIndex(serviceName, "-")]
-
 			if _, ok := healthResults[serviceGroupName]; !ok || healthResult.Ok {
 				healthResults[serviceGroupName] = healthResult.Ok
 			}
 		} else {
-			healthResults[mService.service.Name] = healthResult.Ok
+			healthResults[serviceName] = healthResult.Ok
 		}
 	}
 
-	for _, t := range healthResults {
-		if !t {
+	for _, ok := range healthResults {
+		if !ok {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
@@ -147,6 +147,18 @@ func containsAtLeastOneFrom(s []string, e []string) bool {
 		}
 	}
 	return false
+}
+
+func getMatchingCategories(s []string, e []string) []string {
+	result := make([]string, 0)
+	for _, a := range s {
+		for _, b := range e {
+			if a == b {
+				result = append(result, a)
+			}
+		}
+	}
+	return result
 }
 
 //returns true, only if all categoryNames are considered resilient.

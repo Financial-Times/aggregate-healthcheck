@@ -148,9 +148,13 @@ func (c controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 		"<head>" +
 		"<title>CoCo Aggregate Healthcheck</title>" +
 		"</head>" +
-		"<body>" +
-		"<h1>CoCo Aggregate Healthcheck</h1>" +
-		"<table>" +
+		"<body>"
+	if health.Ok {
+		htmlTemplate += "<h1>CoCo cluster healthy: <span style='color: green;'>true</span></h1>"
+	} else {
+		htmlTemplate += "<h1>CoCo cluster healthy: <span style='color: red;'>false</span></h1>"
+	}
+	htmlTemplate += "<table style='font-size: 10pt; font-family: MONOSPACE;'>" +
 		"%s" +
 		"</table>" +
 		"</body>" +

@@ -28,3 +28,19 @@ ssh -D 2323 -N core@$FLEETCTL_TUNNEL
 ./coco-aggregate-healthcheck --socks-proxy localhost:2323 --etcd-peers "http://localhost:2379" --vulcand "localhost:8080" --graphite-host "graphite.ft.com" --graphite-port "2003" --environment "local"
 ```
 
+## Usage
+
+
+#### Endpoints:
+
+* /__health
+* /__gtg
+
+Both are FT Standard compliant
+
+#### Query Params:
+
+* categories: comma separated list of service categories; e.g. `/__health?categories=read,system` will output the health of services labeled `read` or `system`
+* cache: flag indicating to use the cached health check results or not (default is true). It could come handy right after deployment. E.g. `/__health?cache=false` will force to re-run all the services health checks
+
+You can use both parameters in your query; e.g. `/__gtg?categories=read&cache=false`

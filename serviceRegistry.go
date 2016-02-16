@@ -8,7 +8,6 @@ import (
 	"log"
 	"path/filepath"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -77,7 +76,6 @@ func (r *ServiceRegistry) watchServices() {
 			time.Sleep(10 * time.Second)
 			continue
 		}
-		log.Printf("DEBUG - Change detected under %v in etcd.", servicesKeyPre)
 		r.redefineServiceList()
 		r.updateMeasuredServiceList()
 	}
@@ -85,11 +83,9 @@ func (r *ServiceRegistry) watchServices() {
 
 func (r *ServiceRegistry) updateMeasuredServiceList() {
 	// adding new services, not touching existing
-	var debugLines []string
 	for key, _ := range r.services {
 		service := r.services[key]
 		if mService, ok := r.measuredServices[service.Name]; !ok || !reflect.DeepEqual(service, r.measuredServices[service.Name].service) {
-			debugLines = append(debugLines, fmt.Sprintf("    %v\n", service.Name))
 			if ok {
 				mService.cachedHealth.terminate <- true
 			}
@@ -98,26 +94,14 @@ func (r *ServiceRegistry) updateMeasuredServiceList() {
 			go r.scheduleCheck(&newMService, time.NewTimer(0))
 		}
 	}
-	sort.Strings(debugLines)
-	log.Printf("DEBUG - Measured service to be (re-)created:\n%v", debugLines)
 
-	// removing services that don't exist, not toching the rest
-	debugLines = []string{}
+	// removing services that don't exist, not touching the rest
 	for _, mService := range r.measuredServices {
 		if _, ok := r.services[mService.service.Name]; !ok {
-			debugLines = append(debugLines, fmt.Sprintf("    %v\n", mService.service.Name))
 			delete(r.measuredServices, mService.service.Name)
 			mService.cachedHealth.terminate <- true
 		}
 	}
-	sort.Strings(debugLines)
-	log.Printf("DEBUG - Measured service to be removed:\n%v", debugLines)
-
-	debugLines = []string{}
-	for _, mService := range r.measuredServices {
-		debugLines = append(debugLines, fmt.Sprintf("    %v\n", mService.service.Name))
-	}
-	log.Printf("DEBUG - All measured services:\n%v", debugLines)
 }
 
 func (r *ServiceRegistry) watchCategories() {
@@ -129,13 +113,11 @@ func (r *ServiceRegistry) watchCategories() {
 			time.Sleep(10 * time.Second)
 			continue
 		}
-		log.Printf("DEBUG - Change detected under %v in etcd.", categoriesKeyPre)
 		r.redefineCategoryList()
 	}
 }
 
 func (r *ServiceRegistry) redefineServiceList() {
-	log.Printf("DEBUG - Redefining service list.")
 	services := make(map[string]Service)
 	servicesResp, err := r.etcd.Get(context.Background(), servicesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
@@ -171,22 +153,10 @@ func (r *ServiceRegistry) redefineServiceList() {
 		}
 		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: fmt.Sprintf(pathPre, name, path), Categories: categories}
 	}
-
-	var debugList []string
-	for _, service := range services {
-		debugList = append(debugList, fmt.Sprintf("    %v: %v\n", service.Name, service.Categories))
-	}
-	sort.Strings(debugList)
-	debug := "DEBUG - Services are:\n"
-	for _, debugElem := range debugList {
-		debug += debugElem
-	}
-	log.Print(debug)
 	r.services = services
 }
 
 func (r *ServiceRegistry) redefineCategoryList() {
-	log.Printf("DEBUG - Redefining category list.")
 	categories := make(map[string]Category)
 	categoriesResp, err := r.etcd.Get(context.Background(), categoriesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
@@ -230,7 +200,6 @@ func (r *ServiceRegistry) redefineCategoryList() {
 
 		categories[name] = Category{Name: name, Period: period, IsResilient: resilient}
 	}
-	log.Printf("DEBUG - Categories are: %v", categories)
 	r.categories = categories
 }
 
@@ -238,18 +207,15 @@ func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *
 	// wait
 	select {
 	case <-mService.cachedHealth.terminate:
-		log.Printf("DEBUG - Terminating schedule for %v\n", mService.service.Name)
 		return
 	case <-timer.C:
 	}
 
-	// check
-	//log.Printf("DEBUG - Checking %v\n", mService.service.Name)
+	// run check
 	healthResult := fthealth.RunCheck(mService.service.Name,
 		fmt.Sprintf("Checks the health of %v", mService.service.Name),
 		true,
 		NewServiceHealthCheck(*mService.service, registry.checker))
-	//log.Printf("DEBUG - Received new health results for [%v]. name: %v, status: [%v], nChecks: %v, firstCheckStatus: %v, output: %v", mService.service.Name, healthResult.Name, healthResult.Ok, len(healthResult.Checks), healthResult.Checks[0].Ok, healthResult.Checks[0].Output)
 
 	// write to cache
 	mService.cachedHealth.toWriteToCache <- healthResult

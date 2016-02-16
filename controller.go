@@ -199,12 +199,10 @@ func parseCategories(theUrl *url.URL) []string {
 		return defaultCategories
 	}
 	q, _ := url.ParseQuery(u.RawQuery)
-	fmt.Printf("DEBUG - q[\"categories\"] = %v\n", q["categories"])
 	if len(q["categories"]) < 1 {
 		return defaultCategories
 	}
 	categories := strings.Split(q["categories"][0], ",")
-	fmt.Printf("DEBUG - %v\n", len(categories))
 	return categories
 }
 

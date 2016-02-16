@@ -42,7 +42,6 @@ func NewBufferedHealths() *BufferedHealths {
 
 func (g GraphiteFeeder) feed() {
 	for range g.ticker.C {
-		log.Printf("DEBUG - GraphiteFeeder ticking.")
 		errPilot := g.sendPilotLight()
 		errBuff := g.sendBuffers()
 		if errPilot != nil {
@@ -71,7 +70,6 @@ func (g GraphiteFeeder) sendPilotLight() error {
 	if g.connection == nil {
 		return errors.New("Can't send pilot light, no Graphite connection.")
 	}
-	//log.Printf("DEBUG - "+pilotLightFormat, g.environment, time.Now().Unix())
 	_, err := fmt.Fprintf(g.connection, pilotLightFormat, g.environment, time.Now().Unix())
 	if err != nil {
 		log.Printf("WARN Error sending pilot-light signal to graphite: [%v]", err.Error())
@@ -102,7 +100,6 @@ func (g *GraphiteFeeder) sendOne(result fthealth.HealthResult) error {
 	}
 	check := result.Checks[0]
 	name := strings.Replace(check.Name, ".", "-", -1)
-	//log.Printf("DEBUG - "+metricFormat, g.environment, name, inverseBoolToInt(check.Ok), check.LastUpdated.Unix())
 	_, err := fmt.Fprintf(g.connection, metricFormat, g.environment, name, inverseBoolToInt(check.Ok), check.LastUpdated.Unix())
 	if err != nil {
 		log.Printf("WARN Error sending results to graphite: [%v]", err.Error())

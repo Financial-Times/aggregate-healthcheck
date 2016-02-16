@@ -24,18 +24,34 @@ func NewController(registry *ServiceRegistry, environment *string) *controller {
 	return &controller{registry, environment}
 }
 
-func (c controller) combineHealthResultsFor(categories []string, useCache bool) (fthealth.HealthResult, []string) {
+func (c controller) buildHealthResultFor(categories []string, useCache bool) (fthealth.HealthResult, []string) {
 	var checkResults []fthealth.CheckResult
+	matchingCategories := c.registry.matchingCategories(categories)
+	desc := "Health of the whole cluster of the moment served directly."
 	if useCache {
-		checkResults = c.healthResultsToCheckResults(categories)
+		checkResults = c.collectChecksFromCachesFor(categories)
+		desc = "Health of the whole cluster served from cache.";
 	} else {
 		checkResults = c.runChecksFor(categories)
 	}
-	return c.computeHealthResult(categories, checkResults)
+	var finalOk bool
+	var finalSeverity uint8
+	if c.registry.areResilient(matchingCategories) {
+		finalOk, finalSeverity = c.computeResilientHealthResult(checkResults)
+	} else {
+		finalOk, finalSeverity = c.computeNonResilientHealthResult(checkResults)
+	}
+	return fthealth.HealthResult{
+		Checks:        checkResults,
+		Description:   desc,
+		Name:          *c.environment + " cluster health",
+		SchemaVersion: 1,
+		Ok:            finalOk,
+		Severity:      finalSeverity,
+	}, matchingCategories
 }
 
-func (c controller) healthResultsToCheckResults(categories []string) []fthealth.CheckResult {
-	log.Printf("DEBUG - Combining health results.")
+func (c controller) collectChecksFromCachesFor(categories []string) []fthealth.CheckResult {
 	var checkResults []fthealth.CheckResult
 	for _, mService := range c.registry.measuredServices {
 		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
@@ -45,7 +61,6 @@ func (c controller) healthResultsToCheckResults(categories []string) []fthealth.
 		if len(healthResult.Checks) == 0 {
 			continue
 		}
-
 		checkResult := NewCheckFromSingularHealthResult(healthResult)
 		checkResults = append(checkResults, checkResult)
 	}
@@ -53,7 +68,6 @@ func (c controller) healthResultsToCheckResults(categories []string) []fthealth.
 }
 
 func (c controller) runChecksFor(categories []string) []fthealth.CheckResult {
-	log.Printf("DEBUG - Combining health results.")
 	checks := make([]fthealth.Check, 0)
 	for _, mService := range c.registry.measuredServices {
 		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
@@ -61,57 +75,44 @@ func (c controller) runChecksFor(categories []string) []fthealth.CheckResult {
 		}
 		checks = append(checks, NewServiceHealthCheck(*mService.service, c.registry.checker))
 	}
-
 	return fthealth.RunCheck("Forced check run", "", true, checks...).Checks
 }
 
-func (c controller) computeHealthResult(categories []string, checkResults []fthealth.CheckResult) (fthealth.HealthResult, []string) {
-	intersectingCategories := getIntersectingCategories(categories, c.registry.categories)
-	resilient := isResilient(intersectingCategories, c.registry.categories)
+func (c controller) computeResilientHealthResult(checkResults []fthealth.CheckResult) (bool, uint8) {
 	finalOk := true
-	finalSeverity := 100
-	if resilient {
-		resilientSeverities := make(map[string]int)
-		for _, result := range checkResults {
-			serviceGroupName := result.Name[0:strings.LastIndex(result.Name, "-")]
-			if _, ok := resilientSeverities[serviceGroupName]; ok {
-				if resilientSeverities[serviceGroupName] >= 0 && result.Ok {
-					resilientSeverities[serviceGroupName] = -1 //means ok
-				}
-			} else {
-				if result.Ok {
-					resilientSeverities[serviceGroupName] = -1
-				} else {
-					resilientSeverities[serviceGroupName] = int(result.Severity) //means not ok
-				}
-			}
+	var finalSeverity uint8 = 100
+	oks := make(map[string]bool)
+	severities := make(map[string]uint8)
+	for _, result := range checkResults {
+		serviceGroupName := result.Name[0:strings.LastIndex(result.Name, "-")]
+		if _, isPresent := severities[serviceGroupName]; !isPresent || result.Ok {
+			severities[serviceGroupName] = result.Severity
+			oks[serviceGroupName] = result.Ok
 		}
-		for _, resilientSeverity := range resilientSeverities {
-			if resilientSeverity >= 0 {
-				finalOk = false
-				if resilientSeverity < finalSeverity {
-					finalSeverity = resilientSeverity
-				}
-			}
-		}
-	} else {
-		for _, result := range checkResults {
-			if !result.Ok {
-				finalOk = false
-				if int(result.Severity) < finalSeverity {
-					finalSeverity = int(result.Severity)
-				}
+	}
+	for _, s := range severities {
+		if s >= 0 {
+			finalOk = false
+			if s < finalSeverity {
+				finalSeverity = s
 			}
 		}
 	}
-	return fthealth.HealthResult{
-		Checks:        checkResults,
-		Description:   "Checks the health of the whole cluster.",
-		Name:          "Cluster health",
-		SchemaVersion: 1,
-		Ok:            finalOk,
-		Severity:      uint8(finalSeverity),
-	}, intersectingCategories
+	return finalOk, finalSeverity
+}
+
+func (c controller) computeNonResilientHealthResult(checkResults []fthealth.CheckResult) (bool, uint8) {
+	finalOk := true
+	var finalSeverity uint8 = 2
+	for _, result := range checkResults {
+		if !result.Ok {
+			finalOk = false
+			if result.Severity < finalSeverity {
+				finalSeverity = result.Severity
+			}
+		}
+	}
+	return finalOk, finalSeverity
 }
 
 func (c controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
@@ -124,7 +125,7 @@ func (c controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
 
 func (c controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
-	healthResults, _ := c.combineHealthResultsFor(categories, useCache(r.URL))
+	healthResults, _ := c.buildHealthResultFor(categories, useCache(r.URL))
 	if !healthResults.Ok {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
@@ -132,7 +133,7 @@ func (c controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 
 func (c controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
-	healthResults, _ := c.combineHealthResultsFor(categories, useCache(r.URL))
+	healthResults, _ := c.buildHealthResultFor(categories, useCache(r.URL))
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	err := enc.Encode(healthResults)
@@ -144,7 +145,7 @@ func (c controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 func (c controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	w.Header().Add("Content-Type", "text/html")
-	health, validCategories := c.combineHealthResultsFor(categories, useCache(r.URL))
+	health, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
 	htmlTemplate := "<!DOCTYPE html>" +
 		"<head>" +
 		"<title>CoCo Aggregate Healthcheck</title>" +
@@ -216,26 +217,6 @@ func containsAtLeastOneFrom(s []string, e []string) bool {
 		}
 	}
 	return false
-}
-
-func getIntersectingCategories(s []string, c map[string]Category) []string {
-	result := make([]string, 0)
-	for _, a := range s {
-		if _, ok := c[a]; ok {
-			result = append(result, a)
-		}
-	}
-	return result
-}
-
-//returns true, only if all categoryNames are considered resilient.
-func isResilient(categoryNames []string, allCategories map[string]Category) bool {
-	for _, c := range categoryNames {
-		if !allCategories[c].IsResilient {
-			return false
-		}
-	}
-	return true
 }
 
 type ByName []fthealth.CheckResult

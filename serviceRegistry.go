@@ -279,3 +279,23 @@ func (registry ServiceRegistry) findShortestPeriod(service Service) time.Duratio
 	}
 	return minDuration
 }
+
+//returns true, only if all categoryNames are considered resilient.
+func (r ServiceRegistry) areResilient(categoryNames []string) bool {
+	for _, c := range categoryNames {
+		if !r.categories[c].IsResilient {
+			return false
+		}
+	}
+	return true
+}
+
+func (r ServiceRegistry) matchingCategories(s []string) []string {
+	result := make([]string, 0)
+	for _, a := range s {
+		if _, ok := r.categories[a]; ok {
+			result = append(result, a)
+		}
+	}
+	return result
+}

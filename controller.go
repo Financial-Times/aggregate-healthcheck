@@ -7,27 +7,32 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"strings"
 	"sort"
+	"strings"
 )
 
-var defaultCategories = []string { "default" }
+var defaultCategories = []string{"default"}
 
 type controller struct {
-	registry       *ServiceRegistry
+	registry *ServiceRegistry
 }
 
 func NewController(registry *ServiceRegistry) *controller {
 	return &controller{registry}
 }
 
-func (c controller) combineHealthResultsFor(categories []string) fthealth.HealthResult {
-	checkResults := c.healthResultsToCheckResults(categories)
+func (c controller) combineHealthResultsFor(categories []string, useCache bool) fthealth.HealthResult {
+	var checkResults []fthealth.CheckResult
+	if useCache {
+		checkResults = c.healthResultsToCheckResults(categories)
+	} else {
+		checkResults = c.runChecksFor(categories)
+	}
 	return c.computeHealthResult(categories, checkResults)
 }
 
 func (c controller) healthResultsToCheckResults(categories []string) []fthealth.CheckResult {
-	log.Printf("DEBUG - Combining health results.", )
+	log.Printf("DEBUG - Combining health results.")
 	var checkResults []fthealth.CheckResult
 	for _, mService := range c.registry.measuredServices {
 		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
@@ -42,6 +47,19 @@ func (c controller) healthResultsToCheckResults(categories []string) []fthealth.
 		checkResults = append(checkResults, checkResult)
 	}
 	return checkResults
+}
+
+func (c controller) runChecksFor(categories []string) []fthealth.CheckResult {
+	log.Printf("DEBUG - Combining health results.")
+	checks := make([]fthealth.Check, 0)
+	for _, mService := range c.registry.measuredServices {
+		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
+			continue
+		}
+		checks = append(checks, NewServiceHealthCheck(*mService.service, c.registry.checker))
+	}
+
+	return fthealth.RunCheck("Forced check run", "", true, checks...).Checks
 }
 
 func (c controller) computeHealthResult(categories []string, checkResults []fthealth.CheckResult) fthealth.HealthResult {
@@ -84,12 +102,12 @@ func (c controller) computeHealthResult(categories []string, checkResults []fthe
 		}
 	}
 	return fthealth.HealthResult{
-		Checks: checkResults,
-		Description: "Checks the health of the whole cluster.",
-		Name: "Cluster health",
+		Checks:        checkResults,
+		Description:   "Checks the health of the whole cluster.",
+		Name:          "Cluster health",
 		SchemaVersion: 1,
-		Ok: finalOk,
-		Severity: uint8(finalSeverity),
+		Ok:            finalOk,
+		Severity:      uint8(finalSeverity),
 	}
 }
 
@@ -103,7 +121,7 @@ func (c controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
 
 func (c controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
-	healthResults := c.combineHealthResultsFor(categories)
+	healthResults := c.combineHealthResultsFor(categories, useCache(r.URL))
 	if !healthResults.Ok {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
@@ -111,7 +129,7 @@ func (c controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 
 func (c controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
-	health := c.combineHealthResultsFor(categories)
+	health := c.combineHealthResultsFor(categories, useCache(r.URL))
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
 	err := enc.Encode(health)
@@ -123,7 +141,7 @@ func (c controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 func (c controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	w.Header().Add("Content-Type", "text/html")
-	health := c.combineHealthResultsFor(categories)
+	health := c.combineHealthResultsFor(categories, useCache(r.URL))
 	htmlTemplate := "<!DOCTYPE html>" +
 		"<head>" +
 		"<title>CoCo Aggregate Healthcheck</title>" +
@@ -148,6 +166,11 @@ func (c controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 		servicesHtml += fmt.Sprintf(serviceTrTemplate, serviceHealthUrl, check.Name, status, check.LastUpdated)
 	}
 	fmt.Fprintf(w, htmlTemplate, servicesHtml)
+}
+
+func useCache(theUrl *url.URL) bool {
+	//use cache by default
+	return theUrl.Query().Get("cache") != "false"
 }
 
 func parseCategories(theUrl *url.URL) []string {

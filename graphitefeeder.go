@@ -1,9 +1,9 @@
 package main
 
 import (
-	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 	"errors"
 	"fmt"
+	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 	"log"
 	"net"
 	"strconv"
@@ -32,7 +32,7 @@ func NewGraphiteFeeder(host string, port int, environment string, registry *Serv
 }
 
 type BufferedHealths struct {
-	buffer    chan fthealth.HealthResult
+	buffer chan fthealth.HealthResult
 }
 
 func NewBufferedHealths() *BufferedHealths {

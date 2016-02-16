@@ -55,7 +55,7 @@ func main() {
 	graphiteFeeder := NewGraphiteFeeder(*graphiteHost, *graphitePort, *environment, registry)
 	go graphiteFeeder.feed()
 
-	controller := NewController(registry)
+	controller := NewController(registry, environment)
 
 	handler := controller.handleHealthcheck
 	gtgHandler := controller.handleGoodToGo

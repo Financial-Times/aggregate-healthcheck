@@ -11,19 +11,20 @@ import (
 	"strings"
 )
 
-const timeLayout = "2006-01-02 15:04:05.00 Z07:00 MST"
+const timeLayout = "15:04:05 MST"
 
 var defaultCategories = []string{"default"}
 
 type controller struct {
-	registry *ServiceRegistry
+	registry    *ServiceRegistry
+	environment *string
 }
 
-func NewController(registry *ServiceRegistry) *controller {
-	return &controller{registry}
+func NewController(registry *ServiceRegistry, environment *string) *controller {
+	return &controller{registry, environment}
 }
 
-func (c controller) combineHealthResultsFor(categories []string, useCache bool) fthealth.HealthResult {
+func (c controller) combineHealthResultsFor(categories []string, useCache bool) (fthealth.HealthResult, []string) {
 	var checkResults []fthealth.CheckResult
 	if useCache {
 		checkResults = c.healthResultsToCheckResults(categories)
@@ -64,7 +65,7 @@ func (c controller) runChecksFor(categories []string) []fthealth.CheckResult {
 	return fthealth.RunCheck("Forced check run", "", true, checks...).Checks
 }
 
-func (c controller) computeHealthResult(categories []string, checkResults []fthealth.CheckResult) fthealth.HealthResult {
+func (c controller) computeHealthResult(categories []string, checkResults []fthealth.CheckResult) (fthealth.HealthResult, []string) {
 	intersectingCategories := getIntersectingCategories(categories, c.registry.categories)
 	resilient := isResilient(intersectingCategories, c.registry.categories)
 	finalOk := true
@@ -110,7 +111,7 @@ func (c controller) computeHealthResult(categories []string, checkResults []fthe
 		SchemaVersion: 1,
 		Ok:            finalOk,
 		Severity:      uint8(finalSeverity),
-	}
+	}, intersectingCategories
 }
 
 func (c controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
@@ -123,7 +124,7 @@ func (c controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
 
 func (c controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
-	healthResults := c.combineHealthResultsFor(categories, useCache(r.URL))
+	healthResults, _ := c.combineHealthResultsFor(categories, useCache(r.URL))
 	if !healthResults.Ok {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
@@ -131,10 +132,10 @@ func (c controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 
 func (c controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
-	health := c.combineHealthResultsFor(categories, useCache(r.URL))
+	healthResults, _ := c.combineHealthResultsFor(categories, useCache(r.URL))
 	w.Header().Set("Content-Type", "application/json")
 	enc := json.NewEncoder(w)
-	err := enc.Encode(health)
+	err := enc.Encode(healthResults)
 	if err != nil {
 		panic("Couldn't encode health results to ResponseWriter.")
 	}
@@ -143,16 +144,21 @@ func (c controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 func (c controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	w.Header().Add("Content-Type", "text/html")
-	health := c.combineHealthResultsFor(categories, useCache(r.URL))
+	health, validCategories := c.combineHealthResultsFor(categories, useCache(r.URL))
 	htmlTemplate := "<!DOCTYPE html>" +
 		"<head>" +
 		"<title>CoCo Aggregate Healthcheck</title>" +
 		"</head>" +
-		"<body>"
+		"<body>" +
+		"<h1>CoCo " + *c.environment + " cluster's " + strings.Join(validCategories, ", ") + " services are "
 	if health.Ok {
-		htmlTemplate += "<h1>CoCo cluster healthy: <span style='color: green;'>true</span></h1>"
+		htmlTemplate += "<span style='color: green;'>healthy</span></h1>"
 	} else {
-		htmlTemplate += "<h1>CoCo cluster healthy: <span style='color: red;'>false</span></h1>"
+		if health.Severity > 1 {
+			htmlTemplate += "<span style='color: orange;'>unhealthy</span></h1>"
+		} else {
+			htmlTemplate += "<span style='color: red;'>CRITICAL</span></h1>"
+		}
 	}
 	htmlTemplate += "<table style='font-size: 10pt; font-family: MONOSPACE;'>" +
 		"%s" +
@@ -165,9 +171,15 @@ func (c controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	sort.Sort(ByName(health.Checks))
 	for _, check := range health.Checks {
 		serviceHealthUrl := fmt.Sprintf(serviceUrlTemplate, check.Name)
-		status := "CRITICAL"
+		var status string
 		if check.Ok {
-			status = "OK"
+			status = "<span style='color: green;'>OK</span>"
+		} else {
+			if check.Severity > 1 {
+				status = "<span style='color: orange;'>CRITICAL</span>"
+			} else {
+				status = "<span style='color: red;'>CRITICAL</span>"
+			}
 		}
 		servicesHtml += fmt.Sprintf(serviceTrTemplate, serviceHealthUrl, check.Name, status, check.LastUpdated.Format(timeLayout))
 	}

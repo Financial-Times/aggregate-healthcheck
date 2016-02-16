@@ -85,7 +85,7 @@ func NewServiceHealthCheck(service Service, checker HealthChecker) fthealth.Chec
 		PanicGuide:       "https://sites.google.com/a/ft.com/technology/systems/dynamic-semantic-publishing/coco/runbook",
 		Severity:         severity,
 		TechnicalSummary: "The service is not healthy. Please check the panic guide.",
-		Checker:          func() (string, error) {
+		Checker: func() (string, error) {
 			return checker.Check(service)
 		},
 	}
@@ -94,13 +94,13 @@ func NewServiceHealthCheck(service Service, checker HealthChecker) fthealth.Chec
 func NewCheckFromSingularHealthResult(healthResult fthealth.HealthResult) fthealth.CheckResult {
 	check := healthResult.Checks[0]
 	return fthealth.CheckResult{
-		BusinessImpact: check.BusinessImpact,
-		Output: check.Output,
-		LastUpdated: check.LastUpdated,
-		Name: check.Name,
-		Ok: check.Ok,
-		PanicGuide: check.PanicGuide,
-		Severity: check.Severity,
+		BusinessImpact:   check.BusinessImpact,
+		Output:           check.Output,
+		LastUpdated:      check.LastUpdated,
+		Name:             check.Name,
+		Ok:               check.Ok,
+		PanicGuide:       check.PanicGuide,
+		Severity:         check.Severity,
 		TechnicalSummary: check.TechnicalSummary,
 	}
 }

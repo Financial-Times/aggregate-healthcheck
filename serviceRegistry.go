@@ -1,17 +1,17 @@
 package main
 
 import (
+	"fmt"
+	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 	"github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
 	"log"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
-	"reflect"
-	fthealth "github.com/Financial-Times/go-fthealth/v1a"
-	"fmt"
-	"sort"
 )
 
 const (
@@ -48,7 +48,7 @@ type MeasuredService struct {
 func NewMeasuredService(service *Service) MeasuredService {
 	cachedHealth := NewCachedHealth()
 	bufferedHealths := NewBufferedHealths()
-	go cachedHealth.maintainLatest();
+	go cachedHealth.maintainLatest()
 	return MeasuredService{service, cachedHealth, bufferedHealths}
 }
 
@@ -87,7 +87,7 @@ func (r *ServiceRegistry) updateMeasuredServiceList() {
 	// adding new services, not touching existing
 	var debugLines []string
 	for key, _ := range r.services {
-		service := r.services[key];
+		service := r.services[key]
 		if mService, ok := r.measuredServices[service.Name]; !ok || !reflect.DeepEqual(service, r.measuredServices[service.Name].service) {
 			debugLines = append(debugLines, fmt.Sprintf("    %v\n", service.Name))
 			if ok {
@@ -102,7 +102,7 @@ func (r *ServiceRegistry) updateMeasuredServiceList() {
 	log.Printf("DEBUG - Measured service to be (re-)created:\n%v", debugLines)
 
 	// removing services that don't exist, not toching the rest
-	debugLines = []string {}
+	debugLines = []string{}
 	for _, mService := range r.measuredServices {
 		if _, ok := r.services[mService.service.Name]; !ok {
 			debugLines = append(debugLines, fmt.Sprintf("    %v\n", mService.service.Name))
@@ -113,7 +113,7 @@ func (r *ServiceRegistry) updateMeasuredServiceList() {
 	sort.Strings(debugLines)
 	log.Printf("DEBUG - Measured service to be removed:\n%v", debugLines)
 
-	debugLines = []string {}
+	debugLines = []string{}
 	for _, mService := range r.measuredServices {
 		debugLines = append(debugLines, fmt.Sprintf("    %v\n", mService.service.Name))
 	}
@@ -243,7 +243,7 @@ func (r *ServiceRegistry) redefineCategoryList() {
 func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *time.Timer) {
 	// wait
 	select {
-	case <- mService.cachedHealth.terminate:
+	case <-mService.cachedHealth.terminate:
 		log.Printf("DEBUG - Terminating schedule for %v\n", mService.service.Name)
 		return
 	case <-timer.C:

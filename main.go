@@ -42,7 +42,7 @@ func main() {
 	}
 	etcdKeysApi := client.NewKeysAPI(etcd)
 
-	checker := NewHttpHealthChecker(&http.Client{Transport: transport, Timeout: 10 * time.Second})
+	checker := NewHttpHealthChecker(&http.Client{Transport: transport, Timeout: 5 * time.Second})
 
 	registry := NewCocoServiceRegistry(etcdKeysApi, *vulcandAddr, checker)
 	registry.redefineCategoryList()

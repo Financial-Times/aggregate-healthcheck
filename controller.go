@@ -35,7 +35,6 @@ func (c controller) combineHealthResultsFor(categories []string, useCache bool) 
 }
 
 func (c controller) healthResultsToCheckResults(categories []string) []fthealth.CheckResult {
-	log.Printf("DEBUG - Combining health results.")
 	var checkResults []fthealth.CheckResult
 	for _, mService := range c.registry.measuredServices {
 		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
@@ -53,7 +52,6 @@ func (c controller) healthResultsToCheckResults(categories []string) []fthealth.
 }
 
 func (c controller) runChecksFor(categories []string) []fthealth.CheckResult {
-	log.Printf("DEBUG - Combining health results.")
 	checks := make([]fthealth.Check, 0)
 	for _, mService := range c.registry.measuredServices {
 		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
@@ -198,12 +196,10 @@ func parseCategories(theUrl *url.URL) []string {
 		return defaultCategories
 	}
 	q, _ := url.ParseQuery(u.RawQuery)
-	fmt.Printf("DEBUG - q[\"categories\"] = %v\n", q["categories"])
 	if len(q["categories"]) < 1 {
 		return defaultCategories
 	}
 	categories := strings.Split(q["categories"][0], ",")
-	fmt.Printf("DEBUG - %v\n", len(categories))
 	return categories
 }
 

@@ -163,17 +163,11 @@ func (r *ServiceRegistry) redefineServiceList() {
 		categoriesResp, err := r.etcd.Get(context.Background(), serviceNode.Key+categoriesSuffix, &client.GetOptions{Sort: true})
 		var categories []string
 
-		//TODO simplify this
-		if err != nil {
-			log.Printf("WARN - Failed to get app category from %v: %v. Using default 'default'", serviceNode.Key, err.Error())
+		if err != nil || categoriesResp.Node.Dir {
+			log.Printf("WARN - Failed to get app category from [%v]: [%v]. Using default 'default'", serviceNode.Key+categoriesSuffix, err.Error())
 			categories = append(categories, "default")
 		} else {
-			if !categoriesResp.Node.Dir {
-				categories = strings.Split(categoriesResp.Node.Value, ",")
-			} else {
-				log.Printf("WARN - Failed to get app category from %v: %v. Using default 'default'", categoriesResp.Node.Key, err.Error())
-				categories = append(categories, "default")
-			}
+			categories = strings.Split(categoriesResp.Node.Value, ",")
 		}
 		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: fmt.Sprintf(pathPre, name, path), Categories: categories}
 	}

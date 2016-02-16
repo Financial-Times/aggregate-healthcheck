@@ -11,6 +11,8 @@ import (
 	"strings"
 )
 
+const timeLayout = "2006-01-02 15:04:05.00 Z07:00 MST"
+
 var defaultCategories = []string{"default"}
 
 type controller struct {
@@ -153,7 +155,7 @@ func (c controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 		"</table>" +
 		"</body>" +
 		"</html>"
-	serviceTrTemplate := "<tr><td><a href=\"%s\">%s</a></td><td>%s</td><td>%v</td></tr>\n"
+	serviceTrTemplate := "<tr><td><a href=\"%s\">%s</a></td><td>&nbsp;%s</td><td>&nbsp;<td>&nbsp;%v</td></tr>\n"
 	serviceUrlTemplate := "/health/%s/__health"
 	servicesHtml := ""
 	sort.Sort(ByName(health.Checks))
@@ -163,7 +165,7 @@ func (c controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 		if check.Ok {
 			status = "OK"
 		}
-		servicesHtml += fmt.Sprintf(serviceTrTemplate, serviceHealthUrl, check.Name, status, check.LastUpdated)
+		servicesHtml += fmt.Sprintf(serviceTrTemplate, serviceHealthUrl, check.Name, status, check.LastUpdated.Format(timeLayout))
 	}
 	fmt.Fprintf(w, htmlTemplate, servicesHtml)
 }

@@ -43,3 +43,11 @@ docker run \
 	--env ENVIRONMENT=local \
     coco/aggregate-healthcheck
 ```
+
+## Code explained
+
+* Every time a change is detected in etcd under the specific keys the servies and categories get redefined.
+* When services and categories get redefined only the difference will be copied over in measuredServices.
+* Every service has alongside its latest health result cached and a queue/channel containing n health results back in time.
+* Every service schedules its next check during the current check. They all roll parallel.
+* Every minute the queues/channels are emptied and sent to graphite to store in health timeline for statistics.

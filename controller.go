@@ -91,12 +91,17 @@ func (c controller) computeResilientHealthResult(checkResults []fthealth.CheckRe
 	}
 	for _, s := range severities {
 		if s >= 0 {
-			finalOk = false
 			if s < finalSeverity {
 				finalSeverity = s
 			}
 		}
 	}
+	for _, ok := range oks {
+		if !ok {
+			finalOk = false
+		}
+	}
+
 	return finalOk, finalSeverity
 }
 

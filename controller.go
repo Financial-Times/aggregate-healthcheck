@@ -79,7 +79,7 @@ func (c controller) runChecksFor(categories []string) []fthealth.CheckResult {
 
 func (c controller) computeResilientHealthResult(checkResults []fthealth.CheckResult) (bool, uint8) {
 	finalOk := true
-	var finalSeverity uint8 = 100
+	var finalSeverity uint8 = 2
 	oks := make(map[string]bool)
 	severities := make(map[string]uint8)
 	for _, result := range checkResults {
@@ -89,19 +89,14 @@ func (c controller) computeResilientHealthResult(checkResults []fthealth.CheckRe
 			oks[serviceGroupName] = result.Ok
 		}
 	}
-	for _, s := range severities {
-		if s >= 0 {
-			if s < finalSeverity {
-				finalSeverity = s
+	for serviceGroupName, ok := range oks {
+		if !ok {
+			finalOk = false
+			if severities[serviceGroupName] < finalSeverity {
+				finalSeverity = severities[serviceGroupName]
 			}
 		}
 	}
-	for _, ok := range oks {
-		if !ok {
-			finalOk = false
-		}
-	}
-
 	return finalOk, finalSeverity
 }
 

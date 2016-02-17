@@ -2,15 +2,17 @@ package main
 
 import (
 	"fmt"
-	fthealth "github.com/Financial-Times/go-fthealth/v1a"
-	"github.com/coreos/etcd/client"
-	"golang.org/x/net/context"
 	"log"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	fthealth "github.com/Financial-Times/go-fthealth/v1a"
+	"github.com/coreos/etcd/client"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -51,12 +53,15 @@ func NewMeasuredService(service *Service) MeasuredService {
 	return MeasuredService{service, cachedHealth, bufferedHealths}
 }
 
+type servicesMap map[string]Service
+type categoriesMap map[string]Category
+
 type ServiceRegistry struct {
 	etcd             client.KeysAPI
 	vulcandAddr      string
 	checker          HealthChecker
-	services         map[string]Service
-	categories       map[string]Category
+	services         servicesMap
+	categories       categoriesMap
 	measuredServices map[string]MeasuredService
 }
 
@@ -118,6 +123,7 @@ func (r *ServiceRegistry) watchCategories() {
 }
 
 func (r *ServiceRegistry) redefineServiceList() {
+	log.Printf("INFO - Reloading service list.")
 	services := make(map[string]Service)
 	servicesResp, err := r.etcd.Get(context.Background(), servicesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
@@ -154,9 +160,11 @@ func (r *ServiceRegistry) redefineServiceList() {
 		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: fmt.Sprintf(pathPre, name, path), Categories: categories}
 	}
 	r.services = services
+	log.Printf("INFO - %v", r.services)
 }
 
 func (r *ServiceRegistry) redefineCategoryList() {
+	log.Printf("INFO - Reloading category list.")
 	categories := make(map[string]Category)
 	categoriesResp, err := r.etcd.Get(context.Background(), categoriesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
@@ -201,6 +209,7 @@ func (r *ServiceRegistry) redefineCategoryList() {
 		categories[name] = Category{Name: name, Period: period, IsResilient: resilient}
 	}
 	r.categories = categories
+	log.Printf("INFO - %v", r.categories)
 }
 
 func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *time.Timer) {
@@ -264,4 +273,37 @@ func (r ServiceRegistry) matchingCategories(s []string) []string {
 		}
 	}
 	return result
+}
+
+func (s Service) String() string {
+	return fmt.Sprintf("Service: [%s]. Categories: %v", s.Name, s.Categories)
+}
+
+func (m servicesMap) String() string {
+	lines := make([]string, 0)
+	for _, v := range m {
+		lines = append(lines, v.String())
+	}
+	sort.Strings(lines)
+	var result string
+	for _, line := range lines {
+		result = result + "\t" + line + "\n"
+	}
+	return fmt.Sprintf("Services: [\n%s]", result)
+}
+func (c Category) String() string {
+	return fmt.Sprintf("Category: [%s]. Period: [%v]. Resilient: [%t]", c.Name, c.Period, c.IsResilient)
+}
+
+func (m categoriesMap) String() string {
+	lines := make([]string, 0)
+	for _, v := range m {
+		lines = append(lines, v.String())
+	}
+	sort.Strings(lines)
+	var result string
+	for _, line := range lines {
+		result = result + "\t" + line + "\n"
+	}
+	return fmt.Sprintf("Categories: [\n%s]", result)
 }

@@ -3,10 +3,10 @@ FROM gliderlabs/alpine:3.2
 ADD . /aggregate-healthcheck
 RUN apk --update add go git\
   && export GOPATH=/.gopath \
-  && go get github.com/Financial-Times/coco-aggregate-healthcheck \
+  && go get github.com/Financial-Times/aggregate-healthcheck \
   && cd aggregate-healthcheck \
   && go build \
-  && mv aggregate-healthcheck /coco-aggregate-healthcheck \
+  && mv aggregate-healthcheck /aggregate-healthcheck \
   && apk del go git \
   && rm -rf $GOPATH /var/cache/apk/*
 
@@ -19,10 +19,4 @@ ENV ENVIRONMENT local
 
 EXPOSE 8080
 
-CMD /coco-aggregate-healthcheck \
-	--etcd-peers "$ETCD_PEERS" \
-	--vulcand "$VULCAND_ADDRESS" \
-	--socks-proxy "$SOCKS_PROXY" \
-    --graphite-host "$GRAPHITE_HOST" \
-    --graphite-port "$GRAPHITE_PORT" \
-    --environment "$ENVIRONMENT"
+CMD [ "/aggregate-healthcheck" ]

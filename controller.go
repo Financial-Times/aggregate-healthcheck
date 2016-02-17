@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
-	"log"
 	"net/http"
 	"net/url"
 	"sort"
@@ -30,7 +29,7 @@ func (c controller) buildHealthResultFor(categories []string, useCache bool) (ft
 	desc := "Health of the whole cluster of the moment served directly."
 	if useCache {
 		checkResults = c.collectChecksFromCachesFor(categories)
-		desc = "Health of the whole cluster served from cache.";
+		desc = "Health of the whole cluster served from cache."
 	} else {
 		checkResults = c.runChecksFor(categories)
 	}
@@ -195,7 +194,7 @@ func useCache(theUrl *url.URL) bool {
 func parseCategories(theUrl *url.URL) []string {
 	u, err := url.Parse(theUrl.String())
 	if err != nil {
-		log.Printf("INFO - Error parsing HTTP URL: %v", theUrl)
+		warnLogger.Printf("Error parsing HTTP URL: [%v]", theUrl)
 		return defaultCategories
 	}
 	q, _ := url.ParseQuery(u.RawQuery)

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
-	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -45,10 +44,10 @@ func (g GraphiteFeeder) feed() {
 		errPilot := g.sendPilotLight()
 		errBuff := g.sendBuffers()
 		if errPilot != nil {
-			log.Printf("WARN %v", errPilot.Error())
+			warnLogger.Printf("[%v]", errPilot.Error())
 		}
 		if errBuff != nil {
-			log.Printf("WARN %v", errBuff.Error())
+			warnLogger.Printf("[%v]", errBuff.Error())
 		}
 		if errPilot != nil || errBuff != nil {
 			g.reconnect()
@@ -72,7 +71,7 @@ func (g GraphiteFeeder) sendPilotLight() error {
 	}
 	_, err := fmt.Fprintf(g.connection, pilotLightFormat, g.environment, time.Now().Unix())
 	if err != nil {
-		log.Printf("WARN Error sending pilot-light signal to graphite: [%v]", err.Error())
+		warnLogger.Printf("Error sending pilot-light signal to graphite: [%v]", err.Error())
 		return err
 	}
 	return nil
@@ -102,7 +101,7 @@ func (g *GraphiteFeeder) sendOne(result fthealth.HealthResult) error {
 	name := strings.Replace(check.Name, ".", "-", -1)
 	_, err := fmt.Fprintf(g.connection, metricFormat, g.environment, name, inverseBoolToInt(check.Ok), check.LastUpdated.Unix())
 	if err != nil {
-		log.Printf("WARN Error sending results to graphite: [%v]", err.Error())
+		warnLogger.Printf("Error sending results to graphite: [%v]", err.Error())
 		return err
 	}
 	return nil
@@ -116,7 +115,7 @@ func addBack(bufferedHealths *BufferedHealths, healthResult fthealth.HealthResul
 }
 
 func (graphite *GraphiteFeeder) reconnect() {
-	log.Printf("INFO reconnecting to Graphite host.")
+	infoLogger.Println("Reconnecting to Graphite host.")
 	if graphite.connection != nil {
 		graphite.connection.Close()
 	}
@@ -126,7 +125,7 @@ func (graphite *GraphiteFeeder) reconnect() {
 func tcpConnect(host string, port int) net.Conn {
 	conn, err := net.Dial("tcp", host+":"+strconv.Itoa(port))
 	if err != nil {
-		log.Printf("WARN Error while creating TCP connection [%v]", err)
+		warnLogger.Printf("Error while creating TCP connection [%v]", err)
 		return nil
 	}
 	tcpConn := conn.(*net.TCPConn)

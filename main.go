@@ -5,13 +5,22 @@ import (
 	"github.com/coreos/etcd/client"
 	"github.com/gorilla/mux"
 	"golang.org/x/net/proxy"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
 
+const logPattern = log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile | log.LUTC
+
+var infoLogger *log.Logger
+var warnLogger *log.Logger
+var errorLogger *log.Logger
+
 func main() {
+	initLogs(os.Stdout, os.Stdout, os.Stderr)
 	var (
 		socksProxy   = flag.String("socks-proxy", "", "Use specified SOCKS proxy (e.g. localhost:2323)")
 		etcdPeers    = flag.String("etcd-peers", "http://localhost:4001", "Comma-separated list of addresses of etcd endpoints to connect to")
@@ -21,7 +30,6 @@ func main() {
 		environment  = flag.String("environment", "local", "Environment tag")
 	)
 	flag.Parse()
-
 	transport := &http.Transport{Dial: proxy.Direct.Dial}
 	if *socksProxy != "" {
 		dialer, _ := proxy.SOCKS5("tcp", *socksProxy, nil, proxy.Direct)
@@ -65,4 +73,13 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func initLogs(infoHandle io.Writer, warnHandle io.Writer, errorHandle io.Writer) {
+	//to be used for INFO-level logging: info.Println("foo is now bar")
+	infoLogger = log.New(infoHandle, "INFO  - ", logPattern)
+	//to be used for WARN-level logging: warn.Println("foo is now bar")
+	warnLogger = log.New(warnHandle, "WARN  - ", logPattern)
+	//to be used for ERROR-level logging: errorL.Println("foo is now bar")
+	errorLogger = log.New(errorHandle, "ERROR - ", logPattern)
 }

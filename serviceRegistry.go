@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -77,7 +76,7 @@ func (r *ServiceRegistry) watchServices() {
 	for {
 		_, err := watcher.Next(context.Background())
 		if err != nil {
-			log.Printf("ERROR - Error waiting for change under %v in etcd. %v\n Sleeping 10s...", servicesKeyPre, err.Error())
+			errorLogger.Printf("Error waiting for change under %v in etcd. %v\n Sleeping 10s...", servicesKeyPre, err.Error())
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -114,7 +113,7 @@ func (r *ServiceRegistry) watchCategories() {
 	for {
 		_, err := watcher.Next(context.Background())
 		if err != nil {
-			log.Printf("ERROR - Error waiting for change under %v in etcd. %v\n Sleeping 10s...", categoriesKeyPre, err.Error())
+			errorLogger.Printf("Error waiting for change under %v in etcd. %v\n Sleeping 10s...", categoriesKeyPre, err.Error())
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -123,27 +122,27 @@ func (r *ServiceRegistry) watchCategories() {
 }
 
 func (r *ServiceRegistry) redefineServiceList() {
-	log.Printf("INFO - Reloading service list.")
+	infoLogger.Printf("Reloading service list.")
 	services := make(map[string]Service)
 	servicesResp, err := r.etcd.Get(context.Background(), servicesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
-		log.Printf("ERROR - Failed to get value from %v: %v.", servicesKeyPre, err.Error())
+		errorLogger.Printf("Failed to get value from %v: %v.", servicesKeyPre, err.Error())
 		return
 	}
 	if !servicesResp.Node.Dir {
-		log.Printf("ERROR - %v is not a directory", servicesResp.Node.Key)
+		errorLogger.Printf("[%v] is not a directory", servicesResp.Node.Key)
 		return
 	}
 	for _, serviceNode := range servicesResp.Node.Nodes {
 		if !serviceNode.Dir {
-			log.Printf("WARN - %v is not a directory", serviceNode.Key)
+			warnLogger.Printf("[%v] is not a directory", serviceNode.Key)
 			continue
 		}
 		name := filepath.Base(serviceNode.Key)
 		path := defaultPath
 		pathResp, err := r.etcd.Get(context.Background(), serviceNode.Key+pathSuffix, &client.GetOptions{Sort: true})
 		if err != nil {
-			log.Printf("WARN - Failed to get health check path from %v: %v. Using default %v", serviceNode.Key, err.Error(), defaultPath)
+			warnLogger.Printf("Failed to get health check path from %v: %v. Using default %v", serviceNode.Key, err.Error(), defaultPath)
 		} else {
 			path = pathResp.Node.Value
 		}
@@ -152,7 +151,7 @@ func (r *ServiceRegistry) redefineServiceList() {
 		var categories []string
 
 		if err != nil || categoriesResp.Node.Dir {
-			log.Printf("WARN - Failed to get app category from [%v]: [%v]. Using default 'default'", serviceNode.Key+categoriesSuffix, err.Error())
+			warnLogger.Printf("Failed to get app category from [%v]: [%v]. Using default 'default'", serviceNode.Key+categoriesSuffix, err.Error())
 			categories = append(categories, "default")
 		} else {
 			categories = strings.Split(categoriesResp.Node.Value, ",")
@@ -160,35 +159,35 @@ func (r *ServiceRegistry) redefineServiceList() {
 		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: fmt.Sprintf(pathPre, name, path), Categories: categories}
 	}
 	r.services = services
-	log.Printf("INFO - %v", r.services)
+	infoLogger.Printf("%v", r.services)
 }
 
 func (r *ServiceRegistry) redefineCategoryList() {
-	log.Printf("INFO - Reloading category list.")
+	infoLogger.Printf("Reloading category list.")
 	categories := make(map[string]Category)
 	categoriesResp, err := r.etcd.Get(context.Background(), categoriesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
-		log.Printf("ERROR - Failed to get value from %v: %v.", categoriesKeyPre, err.Error())
+		errorLogger.Printf("Failed to get value from %v: %v.", categoriesKeyPre, err.Error())
 		return
 	}
 	if !categoriesResp.Node.Dir {
-		log.Printf("ERROR - %v is not a directory", categoriesResp.Node.Key)
+		errorLogger.Printf("[%v] is not a directory", categoriesResp.Node.Key)
 		return
 	}
 	for _, categoryNode := range categoriesResp.Node.Nodes {
 		if !categoryNode.Dir {
-			log.Printf("WARN - %v is not a directory", categoryNode.Key)
+			warnLogger.Printf("[%v] is not a directory", categoryNode.Key)
 			continue
 		}
 		name := filepath.Base(categoryNode.Key)
 		periodResp, err := r.etcd.Get(context.Background(), categoryNode.Key+periodKeySuffix, &client.GetOptions{Sort: true})
 		period := defaultDuration
 		if err != nil {
-			log.Printf("WARN - Failed to get health check period from %v: %v. Using default %v", categoryNode.Key, err.Error(), defaultDuration)
+			warnLogger.Printf("Failed to get health check period from %v: %v. Using default %v", categoryNode.Key, err.Error(), defaultDuration)
 		} else {
 			periodInt, err := strconv.Atoi(periodResp.Node.Value)
 			if err != nil {
-				log.Printf("WARN - Error reading health check period value '%v'. Using default %v", periodResp.Node.Value, defaultDuration)
+				warnLogger.Printf("Error reading health check period value '%v'. Using default %v", periodResp.Node.Value, defaultDuration)
 				periodInt = int(defaultDuration.Seconds())
 			}
 			period = time.Duration(periodInt) * time.Second
@@ -196,11 +195,11 @@ func (r *ServiceRegistry) redefineCategoryList() {
 		resilientResp, err := r.etcd.Get(context.Background(), categoryNode.Key+resilientSuffix, nil)
 		resilient := false
 		if err != nil {
-			log.Printf("WARN - Failed to get resilient setting from %v: %v. Using default: false.\n", categoryNode.Key, err.Error())
+			warnLogger.Printf("Failed to get resilient setting from %v: %v. Using default: false.\n", categoryNode.Key, err.Error())
 		} else {
 			resilientBool, err := strconv.ParseBool(resilientResp.Node.Value)
 			if err != nil {
-				log.Printf("WARN - Error reading resilient setting '%v' at key %v. Using default: false.", resilientResp.Node.Value, resilientResp.Node.Key)
+				warnLogger.Printf("Error reading resilient setting '%v' at key %v. Using default: false.", resilientResp.Node.Value, resilientResp.Node.Key)
 				resilientBool = false
 			}
 			resilient = resilientBool
@@ -209,7 +208,7 @@ func (r *ServiceRegistry) redefineCategoryList() {
 		categories[name] = Category{Name: name, Period: period, IsResilient: resilient}
 	}
 	r.categories = categories
-	log.Printf("INFO - %v", r.categories)
+	infoLogger.Printf("%v", r.categories)
 }
 
 func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *time.Timer) {

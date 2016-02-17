@@ -3,12 +3,10 @@ package main
 import (
 	"flag"
 	"github.com/coreos/etcd/client"
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"golang.org/x/net/proxy"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
@@ -63,7 +61,7 @@ func main() {
 	r.HandleFunc("/", handler)
 	r.HandleFunc("/__health", handler)
 	r.HandleFunc("/__gtg", gtgHandler)
-	err = http.ListenAndServe(":8080", handlers.LoggingHandler(os.Stdout, r))
+	err = http.ListenAndServe(":8080", r)
 	if err != nil {
 		panic(err)
 	}

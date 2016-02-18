@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/coreos/etcd/client"
 	"github.com/gorilla/mux"
+	"github.com/jawher/mow.cli"
 	"golang.org/x/net/proxy"
 	"io"
 	"log"
@@ -10,7 +11,6 @@ import (
 	"os"
 	"strings"
 	"time"
-	"github.com/jawher/mow.cli"
 )
 
 const logPattern = log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile | log.LUTC
@@ -76,11 +76,11 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		etcdKeysApi := client.NewKeysAPI(etcd)
+		etcdKeysAPI := client.NewKeysAPI(etcd)
 
-		checker := NewHttpHealthChecker(&http.Client{Transport: transport, Timeout: 5 * time.Second})
+		checker := NewHTTPHealthChecker(&http.Client{Transport: transport, Timeout: 5 * time.Second})
 
-		registry := NewCocoServiceRegistry(etcdKeysApi, *vulcandAddr, checker)
+		registry := NewCocoServiceRegistry(etcdKeysAPI, *vulcandAddr, checker)
 		registry.redefineCategoryList()
 		registry.redefineServiceList()
 		registry.updateMeasuredServiceList()

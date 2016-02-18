@@ -14,16 +14,16 @@ const timeLayout = "15:04:05 MST"
 
 var defaultCategories = []string{"default"}
 
-type controller struct {
+type Controller struct {
 	registry    *ServiceRegistry
 	environment *string
 }
 
-func NewController(registry *ServiceRegistry, environment *string) *controller {
-	return &controller{registry, environment}
+func NewController(registry *ServiceRegistry, environment *string) *Controller {
+	return &Controller{registry, environment}
 }
 
-func (c controller) buildHealthResultFor(categories []string, useCache bool) (fthealth.HealthResult, []string) {
+func (c Controller) buildHealthResultFor(categories []string, useCache bool) (fthealth.HealthResult, []string) {
 	var checkResults []fthealth.CheckResult
 	matchingCategories := c.registry.matchingCategories(categories)
 	desc := "Health of the whole cluster of the moment served directly."
@@ -50,7 +50,7 @@ func (c controller) buildHealthResultFor(categories []string, useCache bool) (ft
 	}, matchingCategories
 }
 
-func (c controller) collectChecksFromCachesFor(categories []string) []fthealth.CheckResult {
+func (c Controller) collectChecksFromCachesFor(categories []string) []fthealth.CheckResult {
 	var checkResults []fthealth.CheckResult
 	for _, mService := range c.registry.measuredServices {
 		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
@@ -66,8 +66,8 @@ func (c controller) collectChecksFromCachesFor(categories []string) []fthealth.C
 	return checkResults
 }
 
-func (c controller) runChecksFor(categories []string) []fthealth.CheckResult {
-	checks := make([]fthealth.Check, 0)
+func (c Controller) runChecksFor(categories []string) []fthealth.CheckResult {
+	var checks []fthealth.Check
 	for _, mService := range c.registry.measuredServices {
 		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
 			continue
@@ -77,7 +77,7 @@ func (c controller) runChecksFor(categories []string) []fthealth.CheckResult {
 	return fthealth.RunCheck("Forced check run", "", true, checks...).Checks
 }
 
-func (c controller) computeResilientHealthResult(checkResults []fthealth.CheckResult) (bool, uint8) {
+func (c Controller) computeResilientHealthResult(checkResults []fthealth.CheckResult) (bool, uint8) {
 	finalOk := true
 	var finalSeverity uint8 = 2
 	oks := make(map[string]bool)
@@ -100,7 +100,7 @@ func (c controller) computeResilientHealthResult(checkResults []fthealth.CheckRe
 	return finalOk, finalSeverity
 }
 
-func (c controller) computeNonResilientHealthResult(checkResults []fthealth.CheckResult) (bool, uint8) {
+func (c Controller) computeNonResilientHealthResult(checkResults []fthealth.CheckResult) (bool, uint8) {
 	finalOk := true
 	var finalSeverity uint8 = 2
 	for _, result := range checkResults {
@@ -114,7 +114,7 @@ func (c controller) computeNonResilientHealthResult(checkResults []fthealth.Chec
 	return finalOk, finalSeverity
 }
 
-func (c controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
+func (c Controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Accept") == "application/json" {
 		c.jsonHandler(w, r)
 	} else {
@@ -122,7 +122,7 @@ func (c controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
+func (c Controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	healthResults, _ := c.buildHealthResultFor(categories, useCache(r.URL))
 	if !healthResults.Ok {
@@ -130,7 +130,7 @@ func (c controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
+func (c Controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	healthResults, _ := c.buildHealthResultFor(categories, useCache(r.URL))
 	w.Header().Set("Content-Type", "application/json")
@@ -141,7 +141,7 @@ func (c controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
+func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	w.Header().Add("Content-Type", "text/html")
 	health, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
@@ -166,11 +166,11 @@ func (c controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 		"</body>" +
 		"</html>"
 	serviceTrTemplate := "<tr><td><a href=\"%s\">%s</a></td><td>&nbsp;%s</td><td>&nbsp;<td>&nbsp;%v</td></tr>\n"
-	serviceUrlTemplate := "/health/%s/__health"
-	servicesHtml := ""
+	serviceURLTemplate := "/health/%s/__health"
+	servicesHTML := ""
 	sort.Sort(ByName(health.Checks))
 	for _, check := range health.Checks {
-		serviceHealthUrl := fmt.Sprintf(serviceUrlTemplate, check.Name)
+		serviceHealthURL := fmt.Sprintf(serviceURLTemplate, check.Name)
 		var status string
 		if check.Ok {
 			status = "<span style='color: green;'>OK</span>"
@@ -181,20 +181,20 @@ func (c controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 				status = "<span style='color: red;'>CRITICAL</span>"
 			}
 		}
-		servicesHtml += fmt.Sprintf(serviceTrTemplate, serviceHealthUrl, check.Name, status, check.LastUpdated.Format(timeLayout))
+		servicesHTML += fmt.Sprintf(serviceTrTemplate, serviceHealthURL, check.Name, status, check.LastUpdated.Format(timeLayout))
 	}
-	fmt.Fprintf(w, htmlTemplate, servicesHtml)
+	fmt.Fprintf(w, htmlTemplate, servicesHTML)
 }
 
-func useCache(theUrl *url.URL) bool {
+func useCache(theURL *url.URL) bool {
 	//use cache by default
-	return theUrl.Query().Get("cache") != "false"
+	return theURL.Query().Get("cache") != "false"
 }
 
-func parseCategories(theUrl *url.URL) []string {
-	u, err := url.Parse(theUrl.String())
+func parseCategories(theURL *url.URL) []string {
+	u, err := url.Parse(theURL.String())
 	if err != nil {
-		warnLogger.Printf("Error parsing HTTP URL: [%v]", theUrl)
+		warnLogger.Printf("Error parsing HTTP URL: [%v]", theURL)
 		return defaultCategories
 	}
 	q, _ := url.ParseQuery(u.RawQuery)

@@ -90,7 +90,6 @@ func (g GraphiteFeeder) sendOneBuffer(mService MeasuredService) error {
 			return nil
 		}
 	}
-	return nil
 }
 
 func (g *GraphiteFeeder) sendOne(result fthealth.HealthResult) error {
@@ -114,12 +113,12 @@ func addBack(bufferedHealths *BufferedHealths, healthResult fthealth.HealthResul
 	}
 }
 
-func (graphite *GraphiteFeeder) reconnect() {
+func (g *GraphiteFeeder) reconnect() {
 	infoLogger.Println("Reconnecting to Graphite host.")
-	if graphite.connection != nil {
-		graphite.connection.Close()
+	if g.connection != nil {
+		g.connection.Close()
 	}
-	graphite.connection = tcpConnect(graphite.host, graphite.port)
+	g.connection = tcpConnect(g.host, g.port)
 }
 
 func tcpConnect(host string, port int) net.Conn {

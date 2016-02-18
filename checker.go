@@ -22,15 +22,15 @@ type HealthChecker interface {
 	Check(Service) (string, error)
 }
 
-type HttpHealthChecker struct {
+type HTTPHealthChecker struct {
 	client *http.Client
 }
 
-func NewHttpHealthChecker(client *http.Client) *HttpHealthChecker {
-	return &HttpHealthChecker{client: client}
+func NewHTTPHealthChecker(client *http.Client) *HTTPHealthChecker {
+	return &HTTPHealthChecker{client: client}
 }
 
-func (c *HttpHealthChecker) Check(service Service) (string, error) {
+func (c *HTTPHealthChecker) Check(service Service) (string, error) {
 	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s%s", service.Host, service.Path), nil)
 	if err != nil {
 		return "", errors.New("Error constructing healthcheck request: " + err.Error())

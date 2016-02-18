@@ -72,7 +72,7 @@ func NewCocoServiceRegistry(etcd client.KeysAPI, vulcandAddr string, checker Hea
 }
 
 func (r *ServiceRegistry) watchServices() {
-	watcher := r.etcd.Watcher(servicesKeyPre, &client.WatcherOptions{0, true})
+	watcher := r.etcd.Watcher(servicesKeyPre, &client.WatcherOptions{AfterIndex: 0, Recursive: true})
 	for {
 		_, err := watcher.Next(context.Background())
 		if err != nil {
@@ -87,7 +87,7 @@ func (r *ServiceRegistry) watchServices() {
 
 func (r *ServiceRegistry) updateMeasuredServiceList() {
 	// adding new services, not touching existing
-	for key, _ := range r.services {
+	for key := range r.services {
 		service := r.services[key]
 		if mService, ok := r.measuredServices[service.Name]; !ok || !reflect.DeepEqual(service, r.measuredServices[service.Name].service) {
 			if ok {
@@ -109,7 +109,7 @@ func (r *ServiceRegistry) updateMeasuredServiceList() {
 }
 
 func (r *ServiceRegistry) watchCategories() {
-	watcher := r.etcd.Watcher(categoriesKeyPre, &client.WatcherOptions{0, true})
+	watcher := r.etcd.Watcher(categoriesKeyPre, &client.WatcherOptions{AfterIndex: 0, Recursive: true})
 	for {
 		_, err := watcher.Next(context.Background())
 		if err != nil {
@@ -211,7 +211,7 @@ func (r *ServiceRegistry) redefineCategoryList() {
 	infoLogger.Printf("%v", r.categories)
 }
 
-func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *time.Timer) {
+func (r ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *time.Timer) {
 	// wait
 	select {
 	case <-mService.cachedHealth.terminate:
@@ -223,7 +223,7 @@ func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *
 	healthResult := fthealth.RunCheck(mService.service.Name,
 		fmt.Sprintf("Checks the health of %v", mService.service.Name),
 		true,
-		NewServiceHealthCheck(*mService.service, registry.checker))
+		NewServiceHealthCheck(*mService.service, r.checker))
 
 	// write to cache
 	mService.cachedHealth.toWriteToCache <- healthResult
@@ -234,15 +234,15 @@ func (registry ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *
 	default:
 	}
 
-	waitDuration := registry.findShortestPeriod(*mService.service)
-	go registry.scheduleCheck(mService, time.NewTimer(waitDuration))
+	waitDuration := r.findShortestPeriod(*mService.service)
+	go r.scheduleCheck(mService, time.NewTimer(waitDuration))
 }
 
-func (registry ServiceRegistry) findShortestPeriod(service Service) time.Duration {
+func (r ServiceRegistry) findShortestPeriod(service Service) time.Duration {
 	minSeconds := defaultDuration.Seconds()
 	minDuration := defaultDuration
 	for _, categoryName := range service.Categories {
-		category, ok := registry.categories[categoryName]
+		category, ok := r.categories[categoryName]
 		if !ok {
 			continue
 		}
@@ -265,7 +265,7 @@ func (r ServiceRegistry) areResilient(categoryNames []string) bool {
 }
 
 func (r ServiceRegistry) matchingCategories(s []string) []string {
-	result := make([]string, 0)
+	var result []string
 	for _, a := range s {
 		if _, ok := r.categories[a]; ok {
 			result = append(result, a)
@@ -279,7 +279,7 @@ func (s Service) String() string {
 }
 
 func (m servicesMap) String() string {
-	lines := make([]string, 0)
+	var lines []string
 	for _, v := range m {
 		lines = append(lines, v.String())
 	}
@@ -295,7 +295,7 @@ func (c Category) String() string {
 }
 
 func (m categoriesMap) String() string {
-	lines := make([]string, 0)
+	var lines []string
 	for _, v := range m {
 		lines = append(lines, v.String())
 	}

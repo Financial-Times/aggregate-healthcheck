@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 	"github.com/coreos/etcd/client"
 	"golang.org/x/net/context"
@@ -73,6 +72,10 @@ func NewCocoServiceRegistry(etcd client.KeysAPI, vulcandAddr string, checker Hea
 
 func (r *ServiceRegistry) watchServices() {
 	watcher := r.etcd.Watcher(servicesKeyPre, &client.WatcherOptions{AfterIndex: 0, Recursive: true})
+	limiter := NewEventLimiter(func() {
+		r.redefineServiceList()
+		r.updateMeasuredServiceList()
+	})
 	for {
 		_, err := watcher.Next(context.Background())
 		if err != nil {
@@ -80,8 +83,7 @@ func (r *ServiceRegistry) watchServices() {
 			time.Sleep(10 * time.Second)
 			continue
 		}
-		r.redefineServiceList()
-		r.updateMeasuredServiceList()
+		limiter.trigger <- true
 	}
 }
 
@@ -110,6 +112,9 @@ func (r *ServiceRegistry) updateMeasuredServiceList() {
 
 func (r *ServiceRegistry) watchCategories() {
 	watcher := r.etcd.Watcher(categoriesKeyPre, &client.WatcherOptions{AfterIndex: 0, Recursive: true})
+	limiter := NewEventLimiter(func() {
+		r.redefineCategoryList()
+	})
 	for {
 		_, err := watcher.Next(context.Background())
 		if err != nil {
@@ -117,7 +122,7 @@ func (r *ServiceRegistry) watchCategories() {
 			time.Sleep(10 * time.Second)
 			continue
 		}
-		r.redefineCategoryList()
+		limiter.trigger <- true
 	}
 }
 

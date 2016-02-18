@@ -28,7 +28,6 @@ func (l EventLimiter) maintainLimiter() {
 func (l EventLimiter) maintainTicker() {
 	for {
 		<- l.ticker.C
-		infoLogger.Printf("limiter tick")
 		select {
 		case l.timePassed <- true:
 		default:
@@ -39,7 +38,6 @@ func (l EventLimiter) maintainTicker() {
 func (l EventLimiter) maintainTrigger() {
 	for {
 		<- l.trigger
-		infoLogger.Printf("limiter trigger")
 		select{
 		case l.wasTriggered <- true:
 		default:
@@ -51,7 +49,6 @@ func (l EventLimiter) limit(f func()) {
 	for {
 		<-l.timePassed
 		<-l.wasTriggered
-		infoLogger.Printf("limiter lets")
 		f()
 	}
 }

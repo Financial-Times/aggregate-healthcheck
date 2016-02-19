@@ -76,7 +76,8 @@ func (c *HTTPHealthChecker) Check(service Service) (string, error) {
 func NewServiceHealthCheck(service Service, checker HealthChecker) fthealth.Check {
 	//horrible hack...but we really need this for the soft go-live
 	var severity uint8 = 2
-	if strings.Contains(service.Name, "synthetic-image-publication-monitor") {
+	if (strings.Contains(service.Name, "synthetic-image-publication-monitor") ||
+	strings.Contains(service.Name, "publish-availability-monitor")) {
 		severity = 1
 	}
 	return fthealth.Check{

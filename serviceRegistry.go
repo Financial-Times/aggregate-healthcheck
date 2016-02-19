@@ -2,28 +2,31 @@ package main
 
 import (
 	"fmt"
+	fthealth "github.com/Financial-Times/go-fthealth/v1a"
+	"github.com/coreos/etcd/client"
+	"golang.org/x/net/context"
 	"path/filepath"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
-	fthealth "github.com/Financial-Times/go-fthealth/v1a"
-	"github.com/coreos/etcd/client"
-	"golang.org/x/net/context"
 )
 
 const (
-	servicesKeyPre   = "/ft/healthcheck"
-	categoriesKeyPre = "/ft/healthcheck-categories"
-	periodKeySuffix  = "/period_seconds"
-	resilientSuffix  = "/is_resilient"
-	pathSuffix       = "/path"
-	categoriesSuffix = "/categories"
-	defaultDuration  = time.Duration(60 * time.Second)
-	pathPre          = "/health/%s%s"
-	defaultPath      = "/__health"
+	servicesKeyPre      = "/ft/healthcheck"
+	categoriesKeyPre    = "/ft/healthcheck-categories"
+	periodKeySuffix     = "/period_seconds"
+	resilientSuffix     = "/is_resilient"
+	pathSuffix          = "/path"
+	categoriesSuffix    = "/categories"
+	defaultDuration     = time.Duration(60 * time.Second)
+	pathPre             = "/health/%s%s"
+	defaultPath         = "/__health"
+	defaultCategoryName = "default"
 )
+
+var defaultCategory = Category{defaultCategoryName, time.Second * 60, false}
 
 type Service struct {
 	Name       string
@@ -151,16 +154,14 @@ func (r *ServiceRegistry) redefineServiceList() {
 		} else {
 			path = pathResp.Node.Value
 		}
+		var categories []string
+		categories = append(categories, defaultCategoryName)
 
 		categoriesResp, err := r.etcd.Get(context.Background(), serviceNode.Key+categoriesSuffix, &client.GetOptions{Sort: true})
-		var categories []string
-
-		if err != nil || categoriesResp.Node.Dir {
-			warnLogger.Printf("Failed to get app category from [%v]: [%v]. Using default 'default'", serviceNode.Key+categoriesSuffix, err.Error())
-			categories = append(categories, "default")
-		} else {
+		if err == nil {
 			categories = strings.Split(categoriesResp.Node.Value, ",")
 		}
+
 		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: fmt.Sprintf(pathPre, name, path), Categories: categories}
 	}
 	r.services = services
@@ -169,7 +170,7 @@ func (r *ServiceRegistry) redefineServiceList() {
 
 func (r *ServiceRegistry) redefineCategoryList() {
 	infoLogger.Printf("Reloading category list.")
-	categories := make(map[string]Category)
+	categories := initCategoryList()
 	categoriesResp, err := r.etcd.Get(context.Background(), categoriesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
 		errorLogger.Printf("Failed to get value from %v: %v.", categoriesKeyPre, err.Error())
@@ -277,6 +278,12 @@ func (r ServiceRegistry) matchingCategories(s []string) []string {
 		}
 	}
 	return result
+}
+
+func initCategoryList() map[string]Category {
+	categories := make(map[string]Category)
+	categories[defaultCategoryName] = defaultCategory
+	return categories
 }
 
 func (s Service) String() string {

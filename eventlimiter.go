@@ -27,7 +27,7 @@ func (l EventLimiter) maintainLimiter() {
 
 func (l EventLimiter) maintainTicker() {
 	for {
-		<- l.ticker.C
+		<-l.ticker.C
 		select {
 		case l.timePassed <- true:
 		default:
@@ -37,8 +37,8 @@ func (l EventLimiter) maintainTicker() {
 
 func (l EventLimiter) maintainTrigger() {
 	for {
-		<- l.trigger
-		select{
+		<-l.trigger
+		select {
 		case l.wasTriggered <- true:
 		default:
 		}

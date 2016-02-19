@@ -159,7 +159,7 @@ func (r *ServiceRegistry) redefineServiceList() {
 
 		categoriesResp, err := r.etcd.Get(context.Background(), serviceNode.Key+categoriesSuffix, &client.GetOptions{Sort: true})
 		if err == nil {
-			categories = strings.Split(categoriesResp.Node.Value, ",")
+			categories = append(categories, strings.Split(categoriesResp.Node.Value, ",")...)
 		}
 
 		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: fmt.Sprintf(pathPre, name, path), Categories: categories}

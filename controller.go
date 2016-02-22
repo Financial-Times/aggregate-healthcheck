@@ -124,7 +124,11 @@ func (c Controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
 
 func (c Controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
-	healthResults, _ := c.buildHealthResultFor(categories, useCache(r.URL))
+	healthResults, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
+	if len(validCategories) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 	if !healthResults.Ok {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
@@ -132,8 +136,12 @@ func (c Controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 
 func (c Controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
-	healthResults, _ := c.buildHealthResultFor(categories, useCache(r.URL))
+	healthResults, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
 	w.Header().Set("Content-Type", "application/json")
+	if len(validCategories) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 	enc := json.NewEncoder(w)
 	err := enc.Encode(healthResults)
 	if err != nil {
@@ -145,6 +153,11 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	w.Header().Add("Content-Type", "text/html")
 	health, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
+	if len(validCategories) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Category does not exist."))
+		return
+	}
 	htmlTemplate := "<!DOCTYPE html>" +
 		"<head>" +
 		"<title>CoCo Aggregate Healthcheck</title>" +
@@ -192,17 +205,11 @@ func useCache(theURL *url.URL) bool {
 }
 
 func parseCategories(theURL *url.URL) []string {
-	u, err := url.Parse(theURL.String())
-	if err != nil {
-		warnLogger.Printf("Error parsing HTTP URL: [%v]", theURL)
+	queriedCategories := theURL.Query().Get("categories")
+	if queriedCategories == "" {
 		return defaultCategories
 	}
-	q, _ := url.ParseQuery(u.RawQuery)
-	if len(q["categories"]) < 1 {
-		return defaultCategories
-	}
-	categories := strings.Split(q["categories"][0], ",")
-	return categories
+	return strings.Split(queriedCategories, ",")
 }
 
 func containsAtLeastOneFrom(s []string, e []string) bool {

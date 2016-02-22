@@ -192,17 +192,7 @@ func useCache(theURL *url.URL) bool {
 }
 
 func parseCategories(theURL *url.URL) []string {
-	u, err := url.Parse(theURL.String())
-	if err != nil {
-		warnLogger.Printf("Error parsing HTTP URL: [%v]", theURL)
-		return defaultCategories
-	}
-	q, _ := url.ParseQuery(u.RawQuery)
-	if len(q["categories"]) < 1 {
-		return defaultCategories
-	}
-	categories := strings.Split(q["categories"][0], ",")
-	return categories
+	return strings.Split(theURL.Query().Get("categories"), ",")
 }
 
 func containsAtLeastOneFrom(s []string, e []string) bool {

@@ -124,7 +124,11 @@ func (c Controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
 
 func (c Controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
-	healthResults, _ := c.buildHealthResultFor(categories, useCache(r.URL))
+	healthResults, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
+	if len(validCategories) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 	if !healthResults.Ok {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
@@ -132,8 +136,12 @@ func (c Controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 
 func (c Controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
-	healthResults, _ := c.buildHealthResultFor(categories, useCache(r.URL))
+	healthResults, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
 	w.Header().Set("Content-Type", "application/json")
+	if len(validCategories) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 	enc := json.NewEncoder(w)
 	err := enc.Encode(healthResults)
 	if err != nil {

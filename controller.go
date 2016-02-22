@@ -147,6 +147,7 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	health, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
 	if len(validCategories) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("Category does not exist."))
 		return
 	}
 	htmlTemplate := "<!DOCTYPE html>" +
@@ -196,7 +197,11 @@ func useCache(theURL *url.URL) bool {
 }
 
 func parseCategories(theURL *url.URL) []string {
-	return strings.Split(theURL.Query().Get("categories"), ",")
+	queriedCategories := theURL.Query().Get("categories")
+	if queriedCategories == "" {
+		return defaultCategories
+	}
+	return strings.Split(queriedCategories, ",")
 }
 
 func containsAtLeastOneFrom(s []string, e []string) bool {

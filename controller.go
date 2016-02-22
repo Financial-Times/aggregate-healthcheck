@@ -145,6 +145,10 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	w.Header().Add("Content-Type", "text/html")
 	health, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
+	if len(validCategories) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 	htmlTemplate := "<!DOCTYPE html>" +
 		"<head>" +
 		"<title>CoCo Aggregate Healthcheck</title>" +

@@ -62,6 +62,7 @@ func main() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
 		transport := &http.Transport {
 			Dial: proxy.Direct.Dial,
+			ResponseHeaderTimeout: 10 * time.Second,
 			MaxIdleConnsPerHost: 100,
 		}
 		if *socksProxy != "" {

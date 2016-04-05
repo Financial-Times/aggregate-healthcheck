@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"io"
 )
 
 type healthcheckResponse struct {
@@ -43,7 +44,10 @@ func (c *HTTPHealthChecker) Check(service Service) (string, error) {
 		return "", errors.New("Error performing healthcheck: " + err.Error())
 	}
 
-	defer resp.Body.Close()
+	defer func() {
+		io.Copy(ioutil.Discard, resp.Body)
+		resp.Body.Close()
+	}()
 
 	if resp.StatusCode != 200 {
 		return "", fmt.Errorf("Healthcheck endpoint returned non-200 status (%v)", resp.Status)

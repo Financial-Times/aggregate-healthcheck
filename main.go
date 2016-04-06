@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/coreos/etcd/client"
+	etcdClient "github.com/coreos/etcd/client"
 	"github.com/gorilla/mux"
 	"github.com/jawher/mow.cli"
 	"golang.org/x/net/proxy"
@@ -60,25 +60,31 @@ func main() {
 
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
-		transport := &http.Transport{Dial: proxy.Direct.Dial}
+		transport := &http.Transport {
+			Dial: proxy.Direct.Dial,
+			ResponseHeaderTimeout: 10 * time.Second,
+			MaxIdleConnsPerHost: 100,
+		}
 		if *socksProxy != "" {
 			dialer, _ := proxy.SOCKS5("tcp", *socksProxy, nil, proxy.Direct)
 			transport.Dial = dialer.Dial
 		}
+		httpClient := &http.Client{
+			Timeout: 5 * time.Second,
+			Transport: transport,
+		}
+		checker := NewHTTPHealthChecker(httpClient)
 
-		cfg := client.Config{
+		cfg := etcdClient.Config{
 			Endpoints:               strings.Split(*etcdPeers, ","),
 			Transport:               transport,
 			HeaderTimeoutPerRequest: 10 * time.Second,
 		}
-
-		etcd, err := client.New(cfg)
+		etcd, err := etcdClient.New(cfg)
 		if err != nil {
 			log.Fatal(err)
 		}
-		etcdKeysAPI := client.NewKeysAPI(etcd)
-
-		checker := NewHTTPHealthChecker(&http.Client{Transport: transport, Timeout: 5 * time.Second})
+		etcdKeysAPI := etcdClient.NewKeysAPI(etcd)
 
 		registry := NewCocoServiceRegistry(etcdKeysAPI, *vulcandAddr, checker)
 		registry.redefineCategoryList()

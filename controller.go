@@ -189,7 +189,7 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 			status = "<span style='color: green;'>OK</span>"
 		} else {
 			if check.Severity > 1 {
-				status = "<span style='color: orange;'>CRITICAL</span>"
+				status = "<span style='color: orange;'>WARNING</span>"
 			} else {
 				status = "<span style='color: red;'>CRITICAL</span>"
 			}

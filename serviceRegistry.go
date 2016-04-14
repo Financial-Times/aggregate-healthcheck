@@ -18,6 +18,7 @@ const (
 	categoriesKeyPre    = "/ft/healthcheck-categories"
 	periodKeySuffix     = "/period_seconds"
 	resilientSuffix     = "/is_resilient"
+	enabledSuffix       = "/enabled"
 	pathSuffix          = "/path"
 	categoriesSuffix    = "/categories"
 	defaultDuration     = time.Duration(60 * time.Second)
@@ -26,7 +27,7 @@ const (
 	defaultCategoryName = "default"
 )
 
-var defaultCategory = Category{defaultCategoryName, time.Second * 60, false}
+var defaultCategory = Category{defaultCategoryName, time.Second * 60, false, true}
 
 type Service struct {
 	Name       string
@@ -39,6 +40,7 @@ type Category struct {
 	Name        string
 	Period      time.Duration
 	IsResilient bool
+	Enabled     bool
 }
 
 type MeasuredService struct {
@@ -186,35 +188,64 @@ func (r *ServiceRegistry) redefineCategoryList() {
 			continue
 		}
 		name := filepath.Base(categoryNode.Key)
-		periodResp, err := r.etcd.Get(context.Background(), categoryNode.Key+periodKeySuffix, &client.GetOptions{Sort: true})
-		period := defaultDuration
-		if err != nil {
-			warnLogger.Printf("Failed to get health check period from %v: %v. Using default %v", categoryNode.Key, err.Error(), defaultDuration)
-		} else {
-			periodInt, err := strconv.Atoi(periodResp.Node.Value)
-			if err != nil {
-				warnLogger.Printf("Error reading health check period value '%v'. Using default %v", periodResp.Node.Value, defaultDuration)
-				periodInt = int(defaultDuration.Seconds())
-			}
-			period = time.Duration(periodInt) * time.Second
-		}
-		resilientResp, err := r.etcd.Get(context.Background(), categoryNode.Key+resilientSuffix, nil)
-		resilient := false
-		if err != nil {
-			warnLogger.Printf("Failed to get resilient setting from %v: %v. Using default: false.\n", categoryNode.Key, err.Error())
-		} else {
-			resilientBool, err := strconv.ParseBool(resilientResp.Node.Value)
-			if err != nil {
-				warnLogger.Printf("Error reading resilient setting '%v' at key %v. Using default: false.", resilientResp.Node.Value, resilientResp.Node.Key)
-				resilientBool = false
-			}
-			resilient = resilientBool
-		}
 
-		categories[name] = Category{Name: name, Period: period, IsResilient: resilient}
+		//Period
+		period := r.catPeriod(categoryNode.Key)
+
+		//Resilient
+		resilient := r.catResilient(categoryNode.Key)
+
+		//Enabled
+		enabled := r.catEnabled(categoryNode.Key)
+
+		categories[name] = Category{Name: name, Period: period, IsResilient: resilient, Enabled: enabled}
 	}
 	r.categories = categories
 	infoLogger.Printf("%v", r.categories)
+}
+
+func (r *ServiceRegistry) catPeriod(catKey string) (period time.Duration) {
+	period = defaultDuration
+	periodResp, err := r.etcd.Get(context.Background(), catKey+periodKeySuffix, &client.GetOptions{Sort: true})
+	if err != nil {
+		warnLogger.Printf("Failed to get health check period from %v: %v. Using default %v", catKey, err.Error(), defaultDuration)
+	} else {
+		periodInt, err := strconv.Atoi(periodResp.Node.Value)
+		if err != nil {
+			warnLogger.Printf("Error reading health check period value '%v'. Using default %v", periodResp.Node.Value, defaultDuration)
+			periodInt = int(defaultDuration.Seconds())
+		}
+		period = time.Duration(periodInt) * time.Second
+	}
+	return
+}
+
+func (r *ServiceRegistry) catResilient(catKey string) (resilient bool) {
+	resilient = false
+	resilientResp, err := r.etcd.Get(context.Background(), catKey+resilientSuffix, nil)
+	if err != nil {
+		warnLogger.Printf("Failed to get resilient setting from %v: %v. Using default: %v.\n", catKey, err.Error(), resilient)
+	} else {
+		resilient, err = strconv.ParseBool(resilientResp.Node.Value)
+		if err != nil {
+			warnLogger.Printf("Error reading resilient setting '%v' at key %v. Using default: %v.", resilientResp.Node.Value, resilientResp.Node.Key, resilient)
+		}
+	}
+	return
+}
+
+func (r *ServiceRegistry) catEnabled(catKey string) (enabled bool) {
+	enabled = true
+	enabledResp, err := r.etcd.Get(context.Background(), catKey+enabledSuffix, nil)
+	if err != nil {
+		warnLogger.Printf("Failed to get enabled setting from %v: %v. Using default: %v.\n", catKey, err.Error(), enabled)
+	} else {
+		enabled, err = strconv.ParseBool(enabledResp.Node.Value)
+		if err != nil {
+			warnLogger.Printf("Error reading resilient setting '%v' at key %v. Using default: %v.", enabledResp.Node.Value, enabledResp.Node.Key, enabled)
+		}
+	}
+	return
 }
 
 func (r ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *time.Timer) {
@@ -303,7 +334,7 @@ func (m servicesMap) String() string {
 	return fmt.Sprintf("Services: [\n%s]", result)
 }
 func (c Category) String() string {
-	return fmt.Sprintf("Category: [%s]. Period: [%v]. Resilient: [%t]", c.Name, c.Period, c.IsResilient)
+	return fmt.Sprintf("Category: [%s]. Period: [%v]. Resilient: [%t]. Enabled: [%v]", c.Name, c.Period, c.IsResilient, c.Enabled)
 }
 
 func (m categoriesMap) String() string {

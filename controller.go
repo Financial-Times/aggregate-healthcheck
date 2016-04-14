@@ -125,6 +125,11 @@ func (c Controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
 func (c Controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	healthResults, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
+	// check any any of the categories are disabled
+	enabled := c.catEnabled(validCategories)
+	if !enabled {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
 	if len(validCategories) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -132,6 +137,17 @@ func (c Controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 	if !healthResults.Ok {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
+}
+
+func (c Controller) catEnabled(validCats []string) bool {
+	for _, cat := range c.registry.categories {
+		for _, validCat := range validCats {
+			if validCat == cat.Name && !cat.Enabled {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func (c Controller) jsonHandler(w http.ResponseWriter, r *http.Request) {

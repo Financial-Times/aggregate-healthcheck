@@ -125,7 +125,7 @@ func (c Controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
 func (c Controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	healthResults, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
-	// check any any of the categories are disabled
+	// check if any of the categories are disabled
 	enabled := c.catEnabled(validCategories)
 	if !enabled {
 		w.WriteHeader(http.StatusServiceUnavailable)

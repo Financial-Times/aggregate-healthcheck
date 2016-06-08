@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
+	"html/template"
 	"net/http"
 	"net/url"
 	"sort"
@@ -17,6 +17,21 @@ var defaultCategories = []string{"default"}
 type Controller struct {
 	registry    *ServiceRegistry
 	environment *string
+}
+
+type ServiceHealthCheck struct {
+	Name        string
+	IsHealthy   bool
+	IsCritical  bool
+	LastUpdated string
+}
+
+type AggregateHealthCheck struct {
+	Environment     string
+	ValidCategories string
+	IsHealthy       bool
+	IsCritical      bool
+	HealthChecks    []ServiceHealthCheck
 }
 
 func NewController(registry *ServiceRegistry, environment *string) *Controller {
@@ -177,45 +192,39 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Category does not exist."))
 		return
 	}
-	htmlTemplate := "<!DOCTYPE html>" +
-		"<head>" +
-		"<title>CoCo Aggregate Healthcheck</title>" +
-		"</head>" +
-		"<body>" +
-		"<h1>CoCo " + *c.environment + " cluster's " + strings.Join(validCategories, ", ") + " services are "
-	if health.Ok {
-		htmlTemplate += "<span style='color: green;'>healthy</span></h1>"
-	} else {
-		if health.Severity > 1 {
-			htmlTemplate += "<span style='color: orange;'>unhealthy</span></h1>"
-		} else {
-			htmlTemplate += "<span style='color: red;'>CRITICAL</span></h1>"
-		}
+
+	mainTemplate, err := template.ParseFiles("main.html")
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Couldn't open template file for html response"))
+		return
 	}
-	htmlTemplate += "<table style='font-size: 10pt; font-family: MONOSPACE;'>" +
-		"%s" +
-		"</table>" +
-		"</body>" +
-		"</html>"
-	serviceTrTemplate := "<tr><td><a href=\"%s\">%s</a></td><td>&nbsp;%s</td><td>&nbsp;<td>&nbsp;%v</td></tr>\n"
-	serviceURLTemplate := "/health/%s/__health"
-	servicesHTML := ""
+
 	sort.Sort(ByName(health.Checks))
+	var healthChecks []ServiceHealthCheck
 	for _, check := range health.Checks {
-		serviceHealthURL := fmt.Sprintf(serviceURLTemplate, check.Name)
-		var status string
-		if check.Ok {
-			status = "<span style='color: green;'>OK</span>"
-		} else {
-			if check.Severity > 1 {
-				status = "<span style='color: orange;'>WARNING</span>"
-			} else {
-				status = "<span style='color: red;'>CRITICAL</span>"
-			}
-		}
-		servicesHTML += fmt.Sprintf(serviceTrTemplate, serviceHealthURL, check.Name, status, check.LastUpdated.Format(timeLayout))
+		healthChecks = append(healthChecks,
+			ServiceHealthCheck{
+				Name:        check.Name,
+				IsHealthy:   check.Ok,
+				IsCritical:  check.Severity == 1,
+				LastUpdated: check.LastUpdated.Format(timeLayout),
+			})
 	}
-	fmt.Fprintf(w, htmlTemplate, servicesHTML)
+
+	param := &AggregateHealthCheck{
+		Environment:     *c.environment,
+		ValidCategories: strings.Join(validCategories, ", "),
+		IsHealthy:       health.Ok,
+		IsCritical:      health.Severity == 1,
+		HealthChecks:    healthChecks,
+	}
+	if err = mainTemplate.Execute(w, param); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Couldn't render template file for html response"))
+		return
+	}
+
 }
 
 func useCache(theURL *url.URL) bool {

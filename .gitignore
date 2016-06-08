@@ -1,1 +1,3 @@
 aggregate-healthcheck
+*.idea
+*.exe

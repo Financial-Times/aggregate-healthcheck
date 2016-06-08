@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<head>
+    <title>CoCo Aggregate Healthcheck</title>
+</head>
+<body>
+<h1>CoCo {{.Environment}} cluster's {{.ValidCategories}} services are
+    {{if .IsHealthy}}<span style='color: green;'>healthy</span>
+    {{else}}
+    {{if .IsCritical}}<span style='color: red;'>CRITICAL</span>
+    {{else}}<span style='color: orange;'>unhealthy</span>
+    {{end}}
+    {{end}}
+</h1>
+<table style='font-size: 10pt; font-family: MONOSPACE;'>
+    {{with .HealthChecks}}
+    {{range .}}
+    <tr>
+        <td><a href="/health/{{.Name}}/__health">{{.Name}}</a></td>
+        <td>&nbsp;
+            {{if .IsHealthy}}<span style='color: green;'>OK</span>
+            {{else}}{{if .IsCritical}}<span style='color: red;'>CRITICAL</span>
+            {{else}}<span style='color: orange;'>WARNING</span>
+            {{end}}
+            {{end}}
+        </td>
+        <td>&nbsp;
+        <td>&nbsp;{{.LastUpdated}}</td>
+    </tr>
+    {{end}}
+    {{end}}
+</table>
+</body>
+</html>

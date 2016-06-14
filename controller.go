@@ -23,7 +23,9 @@ type ServiceHealthCheck struct {
 	Name        string
 	IsHealthy   bool
 	IsCritical  bool
+	IsAcked     bool
 	LastUpdated string
+	Ack         string
 }
 
 type AggregateHealthCheck struct {
@@ -32,6 +34,12 @@ type AggregateHealthCheck struct {
 	IsHealthy       bool
 	IsCritical      bool
 	HealthChecks    []ServiceHealthCheck
+	Ack             Acknowledge
+}
+
+type Acknowledge struct {
+	IsAcked bool
+	Count   int
 }
 
 func NewController(registry *ServiceRegistry, environment *string) *Controller {
@@ -76,6 +84,7 @@ func (c Controller) collectChecksFromCachesFor(categories []string) []fthealth.C
 			continue
 		}
 		checkResult := NewCheckFromSingularHealthResult(healthResult)
+		checkResult.Ack = healthResult.Checks[0].Ack
 		checkResults = append(checkResults, checkResult)
 	}
 	return checkResults
@@ -83,29 +92,43 @@ func (c Controller) collectChecksFromCachesFor(categories []string) []fthealth.C
 
 func (c Controller) runChecksFor(categories []string) []fthealth.CheckResult {
 	var checks []fthealth.Check
+	var acks map[string]string = make(map[string]string)
 	for _, mService := range c.registry.measuredServices {
 		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
 			continue
 		}
 		checks = append(checks, NewServiceHealthCheck(*mService.service, c.registry.checker))
+		ack := c.registry.getAck(mService.service.ServiceKey)
+
+		if ack != "" {
+			acks[mService.service.Name] = ack
+		}
 	}
-	return fthealth.RunCheck("Forced check run", "", true, checks...).Checks
+	healthChecks := fthealth.RunCheck("Forced check run", "", true, checks...).Checks
+	var result []fthealth.CheckResult
+	for _, ch := range healthChecks {
+		if ack, found := acks[ch.Name]; found {
+			ch.Ack = ack
+		}
+		result = append(result, ch)
+	}
+	return result
 }
 
 func (c Controller) computeResilientHealthResult(checkResults []fthealth.CheckResult) (bool, uint8) {
 	finalOk := true
 	var finalSeverity uint8 = 2
-	oks := make(map[string]bool)
+	oks := make(map[string]fthealth.CheckResult)
 	severities := make(map[string]uint8)
 	for _, result := range checkResults {
 		serviceGroupName := result.Name[0:strings.LastIndex(result.Name, "-")]
 		if _, isPresent := severities[serviceGroupName]; !isPresent || result.Ok {
 			severities[serviceGroupName] = result.Severity
-			oks[serviceGroupName] = result.Ok
+			oks[serviceGroupName] = result
 		}
 	}
-	for serviceGroupName, ok := range oks {
-		if !ok {
+	for serviceGroupName, result := range oks {
+		if !result.Ok && result.Ack == "" {
 			finalOk = false
 			if severities[serviceGroupName] < finalSeverity {
 				finalSeverity = severities[serviceGroupName]
@@ -119,7 +142,7 @@ func (c Controller) computeNonResilientHealthResult(checkResults []fthealth.Chec
 	finalOk := true
 	var finalSeverity uint8 = 2
 	for _, result := range checkResults {
-		if !result.Ok {
+		if !result.Ok && result.Ack == "" {
 			finalOk = false
 			if result.Severity < finalSeverity {
 				finalSeverity = result.Severity
@@ -202,14 +225,22 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 
 	sort.Sort(ByName(health.Checks))
 	var healthChecks []ServiceHealthCheck
+	var aggAck Acknowledge
 	for _, check := range health.Checks {
+		hc := ServiceHealthCheck{
+			Name:        check.Name,
+			IsHealthy:   check.Ok,
+			IsCritical:  check.Severity == 1,
+			LastUpdated: check.LastUpdated.Format(timeLayout),
+		}
+		if check.Ack != "" {
+			hc.IsAcked = true
+			hc.Ack = check.Ack
+			aggAck.IsAcked = true
+			aggAck.Count++
+		}
 		healthChecks = append(healthChecks,
-			ServiceHealthCheck{
-				Name:        check.Name,
-				IsHealthy:   check.Ok,
-				IsCritical:  check.Severity == 1,
-				LastUpdated: check.LastUpdated.Format(timeLayout),
-			})
+			hc)
 	}
 
 	param := &AggregateHealthCheck{
@@ -218,6 +249,7 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 		IsHealthy:       health.Ok,
 		IsCritical:      health.Severity == 1,
 		HealthChecks:    healthChecks,
+		Ack:             aggAck,
 	}
 	if err = mainTemplate.Execute(w, param); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

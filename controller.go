@@ -118,16 +118,16 @@ func (c Controller) runChecksFor(categories []string) []fthealth.CheckResult {
 func (c Controller) computeResilientHealthResult(checkResults []fthealth.CheckResult) (bool, uint8) {
 	finalOk := true
 	var finalSeverity uint8 = 2
-	oks := make(map[string]fthealth.CheckResult)
+	serviceCheckResults := make(map[string]fthealth.CheckResult)
 	severities := make(map[string]uint8)
 	for _, result := range checkResults {
 		serviceGroupName := result.Name[0:strings.LastIndex(result.Name, "-")]
 		if _, isPresent := severities[serviceGroupName]; !isPresent || result.Ok {
 			severities[serviceGroupName] = result.Severity
-			oks[serviceGroupName] = result
+			serviceCheckResults[serviceGroupName] = result
 		}
 	}
-	for serviceGroupName, result := range oks {
+	for serviceGroupName, result := range serviceCheckResults {
 		if !result.Ok && result.Ack == "" {
 			finalOk = false
 			if severities[serviceGroupName] < finalSeverity {

@@ -29,6 +29,10 @@ Currently if you want to acknowledge a service, you have to manually create an e
 `etcdctl get /ft/healthcheck/foo-service-1/ack`
  `Details of the ack - who acked the service, why, etc.`
 
+The etcd key have to be set in the following way:
+
+`etcdctl set /ft/healthcheck/foo-service-1/ack 'Details of the ack - who acked the service, why, etc.'`
+
 The ACK that is not needed anymore should be removed also manually from etcd: `etcdctl rm /ft/healthcheck/foo-service-1/ack`
 
 ## Building and running the binary

@@ -22,6 +22,15 @@ Both the above are FT Standard compliant
 
 You can use both parameters in your query both on the good-to-go and healthcheck and endpoints even with `application/json` Accept header on the latter; e.g. `/__gtg?categories=read&cache=false`
 
+### Ack support:
+
+Currently if you want to acknowledge a service, you have to manually create an etcd key within the cluster. The etcd key would look like this:
+
+`etcdctl get /ft/healthcheck/foo-service-1/ack`
+ `Details of the ack - who acked the service, why, etc.`
+
+The ACK that is not needed anymore should be removed also manually from etcd: `etcdctl rm /ft/healthcheck/foo-service-1/ack`
+
 ## Building and running the binary
 
 ```

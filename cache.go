@@ -1,8 +1,6 @@
 package main
 
-import (
-	fthealth "github.com/Financial-Times/go-fthealth/v1a"
-)
+import fthealth "github.com/Financial-Times/go-fthealth/v1a"
 
 type CachedHealth struct {
 	toWriteToCache  chan fthealth.HealthResult

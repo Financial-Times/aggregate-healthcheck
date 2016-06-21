@@ -60,17 +60,17 @@ func main() {
 
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
-		transport := &http.Transport {
+		transport := &http.Transport{
 			Dial: proxy.Direct.Dial,
 			ResponseHeaderTimeout: 10 * time.Second,
-			MaxIdleConnsPerHost: 100,
+			MaxIdleConnsPerHost:   100,
 		}
 		if *socksProxy != "" {
 			dialer, _ := proxy.SOCKS5("tcp", *socksProxy, nil, proxy.Direct)
 			transport.Dial = dialer.Dial
 		}
 		httpClient := &http.Client{
-			Timeout: 5 * time.Second,
+			Timeout:   5 * time.Second,
 			Transport: transport,
 		}
 		checker := NewHTTPHealthChecker(httpClient)

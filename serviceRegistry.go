@@ -21,6 +21,7 @@ const (
 	enabledSuffix       = "/enabled"
 	pathSuffix          = "/path"
 	categoriesSuffix    = "/categories"
+	ackSuffix           = "/ack"
 	defaultDuration     = time.Duration(60 * time.Second)
 	pathPre             = "/health/%s%s"
 	defaultPath         = "/__health"
@@ -34,6 +35,8 @@ type Service struct {
 	Host       string
 	Path       string
 	Categories []string
+	Ack        string
+	ServiceKey string
 }
 
 type Category struct {
@@ -163,8 +166,8 @@ func (r *ServiceRegistry) redefineServiceList() {
 		if err == nil {
 			categories = append(categories, strings.Split(categoriesResp.Node.Value, ",")...)
 		}
-
-		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: fmt.Sprintf(pathPre, name, path), Categories: categories}
+		ack := r.getAck(serviceNode.Key)
+		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: fmt.Sprintf(pathPre, name, path), Categories: categories, Ack: ack, ServiceKey: serviceNode.Key}
 	}
 	r.services = services
 	infoLogger.Printf("%v", r.services)
@@ -243,6 +246,15 @@ func (r *ServiceRegistry) catEnabled(catKey string) (enabled bool) {
 	return
 }
 
+func (r *ServiceRegistry) getAck(serviceKey string) string {
+
+	ackDetails, err := r.etcd.Get(context.Background(), serviceKey+ackSuffix, nil)
+	if err != nil {
+		return ""
+	}
+	return ackDetails.Node.Value
+}
+
 func (r ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *time.Timer) {
 	// wait
 	select {
@@ -256,6 +268,8 @@ func (r ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *time.Ti
 		fmt.Sprintf("Checks the health of %v", mService.service.Name),
 		true,
 		NewServiceHealthCheck(*mService.service, r.checker))
+
+	healthResult.Checks[0].Ack = mService.service.Ack
 
 	// write to cache
 	mService.cachedHealth.toWriteToCache <- healthResult

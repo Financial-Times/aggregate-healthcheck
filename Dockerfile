@@ -8,6 +8,7 @@ RUN apk --update add go git\
   && cd aggregate-healthcheck \
   && go build \
   && mv aggregate-healthcheck /aggregate-healthcheck-app \
+  && mv main.html /main.html \
   && apk del go git \
   && rm -rf $GOPATH /var/cache/apk/*
 

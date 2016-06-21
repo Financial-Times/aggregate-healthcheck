@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<head>
+    <title>CoCo Aggregate Healthcheck</title>
+</head>
+<body>
+<h1>CoCo {{.Environment}} cluster's {{.ValidCategories}} services are
+    {{if .IsHealthy}}<span style='color: green;'>healthy</span>
+    {{else}}
+    {{if .IsCritical}}<span style='color: red;'>CRITICAL</span>
+    {{else}}<span style='color: orange;'>unhealthy</span>
+    {{end}}
+    {{end}}
+    {{if .Ack.IsAcked}} <span style='color: blue;'>({{.Ack.Count}} services acked)</span>
+    {{end}}
+</h1>
+<table style='font-size: 10pt; font-family: MONOSPACE;'>
+    {{with .HealthChecks}}
+    {{range .}}
+    <tr>
+        <td><a href="/health/{{.Name}}/__health">{{.Name}}</a></td>
+        <td>&nbsp;
+            {{if .IsHealthy}}<span style='color: green;'>OK</span>
+            {{else}}{{if .IsCritical}}{{if .IsAcked}} <span style='color: blue;'>CRITICAL ACKED</span>{{else}}
+            <span style='color: red;'>CRITICAL</span>{{end}}
+            {{else}}{{if .IsAcked}}<span style='color: blue;'>WARNING ACKED</span>{{else}}<span style='color: orange;'>WARNING</span>{{end}}
+            {{end}}
+            {{end}}
+        </td>
+        <td>&nbsp;</td>
+        <td>&nbsp;{{.LastUpdated}}</td>
+        <td>&nbsp;
+            {{if .IsAcked}}<span style='color: blue;'><em>{{.Ack}}</em></span>
+            {{end}}
+        </td>
+    </tr>
+    {{end}}
+    {{end}}
+</table>
+</body>
+</html>

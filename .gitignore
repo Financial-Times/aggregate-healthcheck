@@ -1,3 +1,4 @@
 aggregate-healthcheck
 *.idea
 *.exe
+/.project

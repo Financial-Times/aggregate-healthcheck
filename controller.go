@@ -63,14 +63,18 @@ func (c Controller) buildHealthResultFor(categories []string, useCache bool) (ft
 	} else {
 		finalOk, finalSeverity = c.computeNonResilientHealthResult(checkResults)
 	}
-	return fthealth.HealthResult{
+
+	health := fthealth.HealthResult{
 		Checks:        checkResults,
 		Description:   desc,
 		Name:          *c.environment + " cluster health",
 		SchemaVersion: 1,
 		Ok:            finalOk,
 		Severity:      finalSeverity,
-	}, matchingCategories
+	}
+	sort.Sort(ByName(health.Checks))
+
+	return health, matchingCategories
 }
 
 func (c Controller) collectChecksFromCachesFor(categories []string) []fthealth.CheckResult {
@@ -223,7 +227,6 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sort.Sort(ByName(health.Checks))
 	var healthChecks []ServiceHealthCheck
 	var aggAck Acknowledge
 	for _, check := range health.Checks {

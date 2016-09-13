@@ -108,6 +108,7 @@ func (c Controller) runChecksFor(categories []string) []fthealth.CheckResult {
 			acks[mService.service.Name] = ack
 		}
 	}
+
 	healthChecks := fthealth.RunCheck("Forced check run", "", true, checks...).Checks
 	var result []fthealth.CheckResult
 	for _, ch := range healthChecks {
@@ -116,6 +117,8 @@ func (c Controller) runChecksFor(categories []string) []fthealth.CheckResult {
 		}
 		result = append(result, ch)
 	}
+	updateCachedAndBufferedHealth(c.registry, healthChecks)
+
 	return result
 }
 
@@ -260,6 +263,28 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+}
+
+func updateCachedAndBufferedHealth(registry *ServiceRegistry, healthChecks []fthealth.CheckResult) {
+	healthResults := splitChecksInHealthResults(healthChecks)
+	for _, healthResult := range healthResults {
+		if mService, found := registry.measuredServices[healthResult.Checks[0].Name]; found {
+			registry.updateCachedAndBufferedHealth(&mService, &healthResult)
+		}
+	}
+}
+
+func splitChecksInHealthResults(healthChecks []fthealth.CheckResult) []fthealth.HealthResult {
+	healthResults := make([]fthealth.HealthResult, len(healthChecks))
+	for i, check := range healthChecks {
+		healthResults[i].Name = check.Name
+		healthResults[i].SchemaVersion = 1
+		healthResults[i].Checks = make([]fthealth.CheckResult, 1)
+		healthResults[i].Checks[0] = check
+		healthResults[i].Ok = check.Ok
+		healthResults[i].Severity = check.Severity
+	}
+	return healthResults
 }
 
 func useCache(theURL *url.URL) bool {

@@ -135,7 +135,7 @@ func (r *ServiceRegistry) watchCategories() {
 }
 
 func (r *ServiceRegistry) redefineServiceList() {
-	infoLogger.Printf("Reloading service list.")
+	infoLogger.Print("Reloading service list.")
 	services := make(map[string]Service)
 	servicesResp, err := r.etcd.Get(context.Background(), servicesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
@@ -174,7 +174,7 @@ func (r *ServiceRegistry) redefineServiceList() {
 }
 
 func (r *ServiceRegistry) redefineCategoryList() {
-	infoLogger.Printf("Reloading category list.")
+	infoLogger.Print("Reloading category list.")
 	categories := initCategoryList()
 	categoriesResp, err := r.etcd.Get(context.Background(), categoriesKeyPre, &client.GetOptions{Sort: true})
 	if err != nil {
@@ -271,29 +271,31 @@ func (r ServiceRegistry) scheduleCheck(mService *MeasuredService, timer *time.Ti
 
 	healthResult.Checks[0].Ack = mService.service.Ack
 
-	// write to cache
-	mService.cachedHealth.toWriteToCache <- healthResult
-
-	// write to graphite buffer
-	select {
-	case mService.bufferedHealths.buffer <- healthResult:
-	default:
-	}
+	r.updateCachedAndBufferedHealth(mService, &healthResult)
 
 	waitDuration := r.findShortestPeriod(*mService.service)
 	go r.scheduleCheck(mService, time.NewTimer(waitDuration))
 }
 
+func (r ServiceRegistry) updateCachedAndBufferedHealth(mService *MeasuredService, healthResult *fthealth.HealthResult) {
+	// write to cache
+	mService.cachedHealth.toWriteToCache <- *healthResult
+
+	// write to graphite buffer
+	select {
+	case mService.bufferedHealths.buffer <- *healthResult:
+	default:
+	}
+}
+
 func (r ServiceRegistry) findShortestPeriod(service Service) time.Duration {
-	minSeconds := defaultDuration.Seconds()
 	minDuration := defaultDuration
 	for _, categoryName := range service.Categories {
 		category, ok := r.categories[categoryName]
 		if !ok {
 			continue
 		}
-		if category.Period.Seconds() < minSeconds {
-			minSeconds = category.Period.Seconds()
+		if category.Period < minDuration {
 			minDuration = category.Period
 		}
 	}

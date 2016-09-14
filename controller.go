@@ -8,10 +8,13 @@ import (
 	"net/url"
 	"sort"
 	"strings"
+	"regexp"
 )
 
 const timeLayout = "15:04:05 MST"
+const serviceInstanceDelimiter = '@'
 
+var serverInstanceRegex = regexp.MustCompile("-\\d+$")
 var defaultCategories = []string{"default"}
 
 type Controller struct {
@@ -234,7 +237,7 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	var aggAck Acknowledge
 	for _, check := range health.Checks {
 		hc := ServiceHealthCheck{
-			Name:        check.Name,
+			Name:        formatServiceName(check.Name),
 			IsHealthy:   check.Ok,
 			IsCritical:  check.Severity == 1,
 			LastUpdated: check.LastUpdated.Format(timeLayout),
@@ -263,6 +266,18 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+}
+
+func formatServiceName(name string) string {
+	loc := serverInstanceRegex.FindStringIndex(name)
+	if loc == nil {
+		return name
+	}
+
+	nameAsRunes := []rune(name)
+	nameAsRunes[loc[0]] = serviceInstanceDelimiter
+
+	return string(nameAsRunes)
 }
 
 func updateCachedAndBufferedHealth(registry *ServiceRegistry, healthChecks []fthealth.CheckResult) {

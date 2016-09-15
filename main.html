@@ -17,7 +17,7 @@
     {{with .HealthChecks}}
     {{range .}}
     <tr>
-        <td><a href="/health/{{.Name}}/__health">{{.Name}}</a></td>
+        <td><a href="/health/{{.EtcdName}}/__health">{{.FleetName}}</a></td>
         <td>&nbsp;
             {{if .IsHealthy}}<span style='color: green;'>OK</span>
             {{else}}{{if .IsCritical}}{{if .IsAcked}} <span style='color: blue;'>CRITICAL ACKED</span>{{else}}
@@ -36,6 +36,7 @@
     {{end}}
     {{end}}
 </table>
+<p><a href="__health">Refresh health from cache</a></p>
 <p><a href="__health?cache=false">Refresh health without using the cache</a></p>
 </body>
 </html>

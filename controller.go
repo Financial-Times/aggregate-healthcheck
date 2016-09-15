@@ -6,9 +6,9 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
-	"regexp"
 )
 
 const timeLayout = "15:04:05 MST"
@@ -23,7 +23,8 @@ type Controller struct {
 }
 
 type ServiceHealthCheck struct {
-	Name        string
+	FleetName   string
+	EtcdName    string
 	IsHealthy   bool
 	IsCritical  bool
 	IsAcked     bool
@@ -237,7 +238,8 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	var aggAck Acknowledge
 	for _, check := range health.Checks {
 		hc := ServiceHealthCheck{
-			Name:        formatServiceName(check.Name),
+			EtcdName:    check.Name,
+			FleetName:   formatServiceName(check.Name),
 			IsHealthy:   check.Ok,
 			IsCritical:  check.Severity == 1,
 			LastUpdated: check.LastUpdated.Format(timeLayout),
@@ -273,10 +275,8 @@ func formatServiceName(name string) string {
 	if loc == nil {
 		return name
 	}
-
 	nameAsRunes := []rune(name)
 	nameAsRunes[loc[0]] = serviceInstanceDelimiter
-
 	return string(nameAsRunes)
 }
 

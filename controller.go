@@ -6,12 +6,15 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 )
 
 const timeLayout = "15:04:05 MST"
+const serviceInstanceDelimiter = '@'
 
+var serverInstanceRegex = regexp.MustCompile("-\\d+$")
 var defaultCategories = []string{"default"}
 
 type Controller struct {
@@ -20,7 +23,8 @@ type Controller struct {
 }
 
 type ServiceHealthCheck struct {
-	Name        string
+	FleetName   string
+	EtcdName    string
 	IsHealthy   bool
 	IsCritical  bool
 	IsAcked     bool
@@ -108,6 +112,7 @@ func (c Controller) runChecksFor(categories []string) []fthealth.CheckResult {
 			acks[mService.service.Name] = ack
 		}
 	}
+
 	healthChecks := fthealth.RunCheck("Forced check run", "", true, checks...).Checks
 	var result []fthealth.CheckResult
 	for _, ch := range healthChecks {
@@ -116,6 +121,8 @@ func (c Controller) runChecksFor(categories []string) []fthealth.CheckResult {
 		}
 		result = append(result, ch)
 	}
+	updateCachedAndBufferedHealth(c.registry, healthChecks)
+
 	return result
 }
 
@@ -231,7 +238,8 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	var aggAck Acknowledge
 	for _, check := range health.Checks {
 		hc := ServiceHealthCheck{
-			Name:        check.Name,
+			EtcdName:    check.Name,
+			FleetName:   formatServiceName(check.Name),
 			IsHealthy:   check.Ok,
 			IsCritical:  check.Severity == 1,
 			LastUpdated: check.LastUpdated.Format(timeLayout),
@@ -260,6 +268,38 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+}
+
+func formatServiceName(name string) string {
+	loc := serverInstanceRegex.FindStringIndex(name)
+	if loc == nil {
+		return name
+	}
+	nameAsRunes := []rune(name)
+	nameAsRunes[loc[0]] = serviceInstanceDelimiter
+	return string(nameAsRunes)
+}
+
+func updateCachedAndBufferedHealth(registry *ServiceRegistry, healthChecks []fthealth.CheckResult) {
+	healthResults := splitChecksInHealthResults(healthChecks)
+	for _, healthResult := range healthResults {
+		if mService, found := registry.measuredServices[healthResult.Checks[0].Name]; found {
+			registry.updateCachedAndBufferedHealth(&mService, &healthResult)
+		}
+	}
+}
+
+func splitChecksInHealthResults(healthChecks []fthealth.CheckResult) []fthealth.HealthResult {
+	healthResults := make([]fthealth.HealthResult, len(healthChecks))
+	for i, check := range healthChecks {
+		healthResults[i].Name = check.Name
+		healthResults[i].SchemaVersion = 1
+		healthResults[i].Checks = make([]fthealth.CheckResult, 1)
+		healthResults[i].Checks[0] = check
+		healthResults[i].Ok = check.Ok
+		healthResults[i].Severity = check.Severity
+	}
+	return healthResults
 }
 
 func useCache(theURL *url.URL) bool {

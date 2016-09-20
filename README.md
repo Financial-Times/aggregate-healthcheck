@@ -35,6 +35,18 @@ The etcd key have to be set in the following way:
 
 The ACK that is not needed anymore should be removed also manually from etcd: `etcdctl rm /ft/healthcheck/foo-service-1/ack`
 
+### Categories:
+
+Possible categories, that an app can be part of are defined in _etcd_ under `/ft/healthcheck-categories/`. Attributes are `period_seconds` and `is_resilient` (true or false).
+
+If a category is resilient, it means that the overall health of the cluster will only degrade if all instances of any app group are unhealthy.
+
+If document-store-api 1 and 2 are both down, only then will the overall health of the cluster be a _warn_.
+
+If category is not resilient, any app's degradation will affetct the cluster health immediately.
+
+`period_seconds` is the maximum time period at which apps in the respective category must be checked upon. For a given app this period may be shorter, but not longer, depending on which other shorter period categories it resides in also.
+
 ## Building and running the binary
 
 ```

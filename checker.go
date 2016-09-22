@@ -101,7 +101,7 @@ func NewServiceHealthCheck(service Service, checker HealthChecker) fthealth.Chec
 
 func (c *HTTPHealthChecker) IsHighSeverity(serviceName string) bool {
 	for _, appName := range c.sos {
-		if appName == serviceName {
+		if strings.Contains(serviceName, appName) {
 			return true
 		}
 	}

@@ -21,14 +21,17 @@ type healthcheckResponse struct {
 
 type HealthChecker interface {
 	Check(Service) (string, error)
+	IsHighSeverity(string) bool
 }
 
 type HTTPHealthChecker struct {
 	client *http.Client
+	sos []string
+
 }
 
-func NewHTTPHealthChecker(client *http.Client) *HTTPHealthChecker {
-	return &HTTPHealthChecker{client: client}
+func NewHTTPHealthChecker(client *http.Client, sos []string) *HTTPHealthChecker {
+	return &HTTPHealthChecker{client: client, sos: sos}
 }
 
 func (c *HTTPHealthChecker) Check(service Service) (string, error) {
@@ -80,8 +83,8 @@ func (c *HTTPHealthChecker) Check(service Service) (string, error) {
 func NewServiceHealthCheck(service Service, checker HealthChecker) fthealth.Check {
 	//horrible hack...but we really need this for the soft go-live
 	var severity uint8 = 2
-	if strings.Contains(service.Name, "synthetic-image-publication-monitor") ||
-		strings.Contains(service.Name, "publish-availability-monitor") {
+
+	if checker.IsHighSeverity(service.Name) {
 		severity = 1
 	}
 	return fthealth.Check{
@@ -94,6 +97,15 @@ func NewServiceHealthCheck(service Service, checker HealthChecker) fthealth.Chec
 			return checker.Check(service)
 		},
 	}
+}
+
+func (c *HTTPHealthChecker) IsHighSeverity(serviceName string) bool {
+	for _, appName := range c.sos {
+		if appName == serviceName {
+			return true
+		}
+	}
+	return false
 }
 
 func NewCheckFromSingularHealthResult(healthResult fthealth.HealthResult) fthealth.CheckResult {

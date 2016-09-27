@@ -2,15 +2,16 @@ package main
 
 import (
 	"fmt"
-	fthealth "github.com/Financial-Times/go-fthealth/v1a"
-	"github.com/coreos/etcd/client"
-	"golang.org/x/net/context"
 	"path/filepath"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	fthealth "github.com/Financial-Times/go-fthealth/v1a"
+	"github.com/coreos/etcd/client"
+	"golang.org/x/net/context"
 )
 
 const (
@@ -22,13 +23,14 @@ const (
 	pathSuffix          = "/path"
 	categoriesSuffix    = "/categories"
 	ackSuffix           = "/ack"
+	stickySuffix        = "/sticky"
 	defaultDuration     = time.Duration(60 * time.Second)
 	pathPre             = "/health/%s%s"
 	defaultPath         = "/__health"
 	defaultCategoryName = "default"
 )
 
-var defaultCategory = Category{defaultCategoryName, time.Second * 60, false, true}
+var defaultCategory = Category{defaultCategoryName, time.Second * 60, false, true, false}
 
 type Service struct {
 	Name       string
@@ -44,6 +46,7 @@ type Category struct {
 	Period      time.Duration
 	IsResilient bool
 	Enabled     bool
+	Sticky      bool
 }
 
 type MeasuredService struct {
@@ -230,6 +233,25 @@ func (r *ServiceRegistry) catResilient(catKey string) (resilient bool) {
 		warnLogger.Printf("Error reading resilient setting '%v' at key %v. Using default: %v.", resilientResp.Node.Value, resilientResp.Node.Key, resilient)
 	}
 	return
+}
+
+func (r *ServiceRegistry) disableCategoryIfSticky(cat string) {
+	sticky := false
+	stickyResp, err := r.etcd.Get(context.Background(), categoriesKeyPre+cat+stickySuffix, nil)
+	if err != nil {
+		warnLogger.Printf("Failed to get sticky setting from %v: %v.\n", categoriesKeyPre+cat, err.Error())
+	}
+	sticky, err = strconv.ParseBool(stickyResp.Node.Value)
+	if err != nil {
+		warnLogger.Printf("Error reading sticky setting '%v' at key %v.", stickyResp.Node.Value, stickyResp.Node.Key)
+	}
+	if sticky {
+		_, err = r.etcd.Set(context.Background(), categoriesKeyPre+cat+enabledSuffix, "false", nil)
+		if err != nil {
+			warnLogger.Printf("Failed to disable %v: %v.\n", categoriesKeyPre+cat, err.Error())
+		}
+		infoLogger.Printf("Setting category enabled %v to false.", cat)
+	}
 }
 
 func (r *ServiceRegistry) catEnabled(catKey string) (enabled bool) {

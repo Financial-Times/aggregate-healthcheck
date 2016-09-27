@@ -2,13 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 	"html/template"
 	"net/http"
 	"net/url"
 	"regexp"
 	"sort"
 	"strings"
+
+	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 )
 
 const timeLayout = "15:04:05 MST"
@@ -187,6 +188,9 @@ func (c Controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !healthResults.Ok {
+		for _, validCat := range validCategories {
+			c.registry.disableCategoryIfSticky(validCat)
+		}
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 }

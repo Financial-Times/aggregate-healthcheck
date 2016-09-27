@@ -237,18 +237,18 @@ func (r *ServiceRegistry) catResilient(catKey string) (resilient bool) {
 
 func (r *ServiceRegistry) disableCategoryIfSticky(cat string) {
 	sticky := false
-	stickyResp, err := r.etcd.Get(context.Background(), categoriesKeyPre+cat+stickySuffix, nil)
+	stickyResp, err := r.etcd.Get(context.Background(), categoriesKeyPre+"/"+cat+stickySuffix, nil)
 	if err != nil {
-		warnLogger.Printf("Failed to get sticky setting from %v: %v.\n", categoriesKeyPre+cat, err.Error())
+		warnLogger.Printf("Failed to get sticky setting from %v: %v.\n", categoriesKeyPre+"/"+cat, err.Error())
 	}
 	sticky, err = strconv.ParseBool(stickyResp.Node.Value)
 	if err != nil {
 		warnLogger.Printf("Error reading sticky setting '%v' at key %v.", stickyResp.Node.Value, stickyResp.Node.Key)
 	}
 	if sticky {
-		_, err = r.etcd.Set(context.Background(), categoriesKeyPre+cat+enabledSuffix, "false", nil)
+		_, err = r.etcd.Set(context.Background(), categoriesKeyPre+"/"+cat+enabledSuffix, "false", nil)
 		if err != nil {
-			warnLogger.Printf("Failed to disable %v: %v.\n", categoriesKeyPre+cat, err.Error())
+			warnLogger.Printf("Failed to disable %v: %v.\n", categoriesKeyPre+"/"+cat, err.Error())
 		}
 		infoLogger.Printf("Setting category enabled %v to false.", cat)
 	}

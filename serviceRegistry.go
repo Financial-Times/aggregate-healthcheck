@@ -240,10 +240,12 @@ func (r *ServiceRegistry) disableCategoryIfSticky(cat string) {
 	stickyResp, err := r.etcd.Get(context.Background(), categoriesKeyPre+"/"+cat+stickySuffix, nil)
 	if err != nil {
 		warnLogger.Printf("Failed to get sticky setting from %v: %v.\n", categoriesKeyPre+"/"+cat, err.Error())
+		return
 	}
 	sticky, err = strconv.ParseBool(stickyResp.Node.Value)
 	if err != nil {
 		warnLogger.Printf("Error reading sticky setting '%v' at key %v.", stickyResp.Node.Value, stickyResp.Node.Key)
+		return
 	}
 	if sticky {
 		_, err = r.etcd.Set(context.Background(), categoriesKeyPre+"/"+cat+enabledSuffix, "false", nil)

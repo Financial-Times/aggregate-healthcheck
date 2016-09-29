@@ -35,6 +35,16 @@ The etcd key have to be set in the following way:
 
 The ACK that is not needed anymore should be removed also manually from etcd: `etcdctl rm /ft/healthcheck/foo-service-1/ack`
 
+### Sticky support:
+
+A healthcheck can be marked as 'sticky' by setting the etcd value for the category:
+
+`etcdctl set /ft/healthcheck-categories/<category>/sticky true`
+
+This lets the healthcheck know that if the healthcheck for the category ever fails, it should stay failed rather than healing as normal.  It does this by setting the `/enabled` key to false.  To re-enable the healthcheck, `/enabled` will need to manually be set to true (in the same manner as a manual failover):
+
+`etcdctl set /ft/healthcheck-categories/<category>/enabled true`
+
 ## Building and running the binary
 
 ```

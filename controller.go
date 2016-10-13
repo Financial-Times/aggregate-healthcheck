@@ -51,9 +51,10 @@ func NewController(registry *ServiceRegistry, environment *string) *Controller {
 	return &Controller{registry, environment}
 }
 
-func (c Controller) buildHealthResultFor(categories []string, useCache bool) (fthealth.HealthResult, []string) {
+func (c Controller) buildHealthResultFor(categories []string, useCache bool) (fthealth.HealthResult, []string, []string) {
 	var checkResults []fthealth.CheckResult
 	var categorisedResults map[string][]fthealth.CheckResult
+	unhealthyCategories := []string{}
 	matchingCategories := c.registry.matchingCategories(categories)
 	desc := "Health of the whole cluster of the moment served directly."
 	if useCache {
@@ -80,6 +81,17 @@ func (c Controller) buildHealthResultFor(categories []string, useCache bool) (ft
 				catOk, catSeverity = c.computeNonResilientHealthResult(results)
 			}
 			infoLogger.Printf("category %v:  ok: %v  severity: %v", category, catOk, catSeverity)
+
+			if !catOk {
+				unhealthyServices := []string{}
+				for _, result := range results {
+					if !result.Ok {
+						unhealthyServices = append(unhealthyServices, result.Name)
+					}
+				}
+				warnLogger.Printf("In category %v, the following services are unhealthy: %v", category, strings.Join(unhealthyServices, ","))
+				unhealthyCategories = append(unhealthyCategories, category)
+			}
 		}
 	}
 
@@ -93,7 +105,7 @@ func (c Controller) buildHealthResultFor(categories []string, useCache bool) (ft
 	}
 	sort.Sort(ByName(health.Checks))
 
-	return health, matchingCategories
+	return health, matchingCategories, unhealthyCategories
 }
 
 func (c Controller) collectChecksFromCachesFor(categories []string) []fthealth.CheckResult {
@@ -146,12 +158,7 @@ func (c Controller) runChecksFor(categories []string) ([]fthealth.CheckResult, m
 			acks[mService.service.Name] = ack
 		}
 	}
-	for name, value := range categorisedChecks {
-		infoLogger.Printf("category: %v", name)
-		for _, ch := range value {
-			infoLogger.Printf("--check: %v", ch.Name)
-		}
-	}
+
 	healthChecks := fthealth.RunCheck("Forced check run", "", true, checks...).Checks
 	var result []fthealth.CheckResult
 	for _, ch := range healthChecks {
@@ -228,14 +235,14 @@ func (c Controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	healthResults, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
+	healthResults, validCategories, unhealthyCategories := c.buildHealthResultFor(categories, useCache(r.URL))
 	if len(validCategories) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	if !healthResults.Ok {
-		for _, validCat := range validCategories {
-			c.registry.disableCategoryIfSticky(validCat)
+		for _, cat := range unhealthyCategories {
+			c.registry.disableCategoryIfSticky(cat)
 		}
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
@@ -254,7 +261,7 @@ func (c Controller) catEnabled(validCats []string) bool {
 
 func (c Controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
-	healthResults, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
+	healthResults, validCategories, _ := c.buildHealthResultFor(categories, useCache(r.URL))
 	w.Header().Set("Content-Type", "application/json")
 	if len(validCategories) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -270,7 +277,7 @@ func (c Controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	w.Header().Add("Content-Type", "text/html")
-	health, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
+	health, validCategories, _ := c.buildHealthResultFor(categories, useCache(r.URL))
 	if len(validCategories) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Category does not exist."))

@@ -53,13 +53,14 @@ func NewController(registry *ServiceRegistry, environment *string) *Controller {
 
 func (c Controller) buildHealthResultFor(categories []string, useCache bool) (fthealth.HealthResult, []string) {
 	var checkResults []fthealth.CheckResult
+	var categorisedResults map[string][]fthealth.CheckResult
 	matchingCategories := c.registry.matchingCategories(categories)
 	desc := "Health of the whole cluster of the moment served directly."
 	if useCache {
 		checkResults = c.collectChecksFromCachesFor(categories)
 		desc = "Health of the whole cluster served from cache."
 	} else {
-		checkResults = c.runChecksFor(categories)
+		checkResults, categorisedResults = c.runChecksFor(categories)
 	}
 	var finalOk bool
 	var finalSeverity uint8
@@ -67,6 +68,19 @@ func (c Controller) buildHealthResultFor(categories []string, useCache bool) (ft
 		finalOk, finalSeverity = c.computeResilientHealthResult(checkResults)
 	} else {
 		finalOk, finalSeverity = c.computeNonResilientHealthResult(checkResults)
+	}
+
+	if categorisedResults != nil {
+		for category, results := range categorisedResults {
+			var catOk bool
+			var catSeverity uint8
+			if c.registry.areResilient([]string{category}) {
+				catOk, catSeverity = c.computeResilientHealthResult(results)
+			} else {
+				catOk, catSeverity = c.computeNonResilientHealthResult(results)
+			}
+			infoLogger.Printf("category %v:  ok: %v  severity: %v", category, catOk, catSeverity)
+		}
 	}
 
 	health := fthealth.HealthResult{
@@ -99,9 +113,16 @@ func (c Controller) collectChecksFromCachesFor(categories []string) []fthealth.C
 	return checkResults
 }
 
-func (c Controller) runChecksFor(categories []string) []fthealth.CheckResult {
+func (c Controller) runChecksFor(categories []string) ([]fthealth.CheckResult, map[string][]fthealth.CheckResult) {
 	var checks []fthealth.Check
+
 	categorisedChecks := make(map[string][]*fthealth.Check)
+	categorisedResults := make(map[string][]fthealth.CheckResult)
+	for _, c := range categories {
+		categorisedChecks[c] = []*fthealth.Check{}
+		categorisedResults[c] = []fthealth.CheckResult{}
+	}
+
 	var acks map[string]string = make(map[string]string)
 	for _, mService := range c.registry.measuredServices {
 		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
@@ -111,11 +132,12 @@ func (c Controller) runChecksFor(categories []string) []fthealth.CheckResult {
 		checks = append(checks, check)
 		for _, category := range mService.service.Categories {
 			categoryChecks, exists := categorisedChecks[category]
-			if !exists {
-				categoryChecks = []*fthealth.Check{}
+			//			if !exists {
+			//				categoryChecks = []*fthealth.Check{}
+			//			}
+			if exists {
+				categorisedChecks[category] = append(categoryChecks, &check)
 			}
-
-			categorisedChecks[category] = append(categoryChecks, &check)
 		}
 
 		ack := c.registry.getAck(mService.service.ServiceKey)
@@ -137,10 +159,18 @@ func (c Controller) runChecksFor(categories []string) []fthealth.CheckResult {
 			ch.Ack = ack
 		}
 		result = append(result, ch)
+
+		for category, checks := range categorisedChecks {
+			for _, check := range checks {
+				if check.Name == ch.Name {
+					categorisedResults[category] = append(categorisedResults[category], ch)
+				}
+			}
+		}
 	}
 	updateCachedAndBufferedHealth(c.registry, healthChecks)
 
-	return result
+	return result, categorisedResults
 }
 
 func (c Controller) computeResilientHealthResult(checkResults []fthealth.CheckResult) (bool, uint8) {

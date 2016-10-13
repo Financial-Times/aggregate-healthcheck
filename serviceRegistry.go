@@ -252,7 +252,7 @@ func (r *ServiceRegistry) disableCategoryIfSticky(cat string) {
 		if err != nil {
 			warnLogger.Printf("Failed to disable %v: %v.\n", categoriesKeyPre+"/"+cat, err.Error())
 		}
-		infoLogger.Printf("Setting category enabled %v to false.", cat)
+		warnLogger.Printf("Setting category enabled %v to false.", cat)
 	}
 }
 

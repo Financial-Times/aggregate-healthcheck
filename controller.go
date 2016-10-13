@@ -101,19 +101,35 @@ func (c Controller) collectChecksFromCachesFor(categories []string) []fthealth.C
 
 func (c Controller) runChecksFor(categories []string) []fthealth.CheckResult {
 	var checks []fthealth.Check
+	categorisedChecks := make(map[string][]*fthealth.Check)
 	var acks map[string]string = make(map[string]string)
 	for _, mService := range c.registry.measuredServices {
 		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
 			continue
 		}
-		checks = append(checks, NewServiceHealthCheck(*mService.service, c.registry.checker))
+		check := NewServiceHealthCheck(*mService.service, c.registry.checker)
+		checks = append(checks, check)
+		for _, category := range mService.service.Categories {
+			categoryChecks, exists := categorisedChecks[category]
+			if !exists {
+				categoryChecks = []*fthealth.Check{}
+			}
+
+			categorisedChecks[category] = append(categoryChecks, &check)
+		}
+
 		ack := c.registry.getAck(mService.service.ServiceKey)
 
 		if ack != "" {
 			acks[mService.service.Name] = ack
 		}
 	}
-
+	for name, value := range categorisedChecks {
+		infoLogger.Printf("category: %v", name)
+		for _, ch := range value {
+			infoLogger.Printf("--check: %v", ch.Name)
+		}
+	}
 	healthChecks := fthealth.RunCheck("Forced check run", "", true, checks...).Checks
 	var result []fthealth.CheckResult
 	for _, ch := range healthChecks {

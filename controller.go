@@ -80,7 +80,6 @@ func (c Controller) buildHealthResultFor(categories []string, useCache bool) (ft
 			} else {
 				catOk, catSeverity = c.computeNonResilientHealthResult(results)
 			}
-			infoLogger.Printf("category %v:  ok: %v  severity: %v", category, catOk, catSeverity)
 
 			if !catOk {
 				unhealthyServices := []string{}
@@ -143,11 +142,7 @@ func (c Controller) runChecksFor(categories []string) ([]fthealth.CheckResult, m
 		check := NewServiceHealthCheck(*mService.service, c.registry.checker)
 		checks = append(checks, check)
 		for _, category := range mService.service.Categories {
-			categoryChecks, exists := categorisedChecks[category]
-			//			if !exists {
-			//				categoryChecks = []*fthealth.Check{}
-			//			}
-			if exists {
+			if categoryChecks, exists := categorisedChecks[category]; exists {
 				categorisedChecks[category] = append(categoryChecks, &check)
 			}
 		}

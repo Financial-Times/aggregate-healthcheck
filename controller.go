@@ -73,11 +73,10 @@ func (c Controller) buildHealthResultFor(categories []string, useCache bool) (ft
 
 	for category, results := range categorisedResults {
 		var catOk bool
-		var catSeverity uint8
 		if c.registry.areResilient([]string{category}) {
-			catOk, catSeverity = c.computeResilientHealthResult(results)
+			catOk, _ = c.computeResilientHealthResult(results)
 		} else {
-			catOk, catSeverity = c.computeNonResilientHealthResult(results)
+			catOk, _ = c.computeNonResilientHealthResult(results)
 		}
 
 		if !catOk {

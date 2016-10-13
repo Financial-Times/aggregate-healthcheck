@@ -58,7 +58,7 @@ func (c Controller) buildHealthResultFor(categories []string, useCache bool) (ft
 	matchingCategories := c.registry.matchingCategories(categories)
 	desc := "Health of the whole cluster of the moment served directly."
 	if useCache {
-		checkResults = c.collectChecksFromCachesFor(categories)
+		checkResults, categorisedResults = c.collectChecksFromCachesFor(categories)
 		desc = "Health of the whole cluster served from cache."
 	} else {
 		checkResults, categorisedResults = c.runChecksFor(categories)
@@ -71,26 +71,24 @@ func (c Controller) buildHealthResultFor(categories []string, useCache bool) (ft
 		finalOk, finalSeverity = c.computeNonResilientHealthResult(checkResults)
 	}
 
-	if categorisedResults != nil {
-		for category, results := range categorisedResults {
-			var catOk bool
-			var catSeverity uint8
-			if c.registry.areResilient([]string{category}) {
-				catOk, catSeverity = c.computeResilientHealthResult(results)
-			} else {
-				catOk, catSeverity = c.computeNonResilientHealthResult(results)
-			}
+	for category, results := range categorisedResults {
+		var catOk bool
+		var catSeverity uint8
+		if c.registry.areResilient([]string{category}) {
+			catOk, catSeverity = c.computeResilientHealthResult(results)
+		} else {
+			catOk, catSeverity = c.computeNonResilientHealthResult(results)
+		}
 
-			if !catOk {
-				unhealthyServices := []string{}
-				for _, result := range results {
-					if !result.Ok {
-						unhealthyServices = append(unhealthyServices, result.Name)
-					}
+		if !catOk {
+			unhealthyServices := []string{}
+			for _, result := range results {
+				if !result.Ok {
+					unhealthyServices = append(unhealthyServices, result.Name)
 				}
-				warnLogger.Printf("In category %v, the following services are unhealthy: %v", category, strings.Join(unhealthyServices, ","))
-				unhealthyCategories = append(unhealthyCategories, category)
 			}
+			warnLogger.Printf("In category %v, the following services are unhealthy: %v", category, strings.Join(unhealthyServices, ","))
+			unhealthyCategories = append(unhealthyCategories, category)
 		}
 	}
 
@@ -107,8 +105,14 @@ func (c Controller) buildHealthResultFor(categories []string, useCache bool) (ft
 	return health, matchingCategories, unhealthyCategories
 }
 
-func (c Controller) collectChecksFromCachesFor(categories []string) []fthealth.CheckResult {
+func (c Controller) collectChecksFromCachesFor(categories []string) ([]fthealth.CheckResult, map[string][]fthealth.CheckResult) {
 	var checkResults []fthealth.CheckResult
+
+	categorisedResults := make(map[string][]fthealth.CheckResult)
+	for _, c := range categories {
+		categorisedResults[c] = []fthealth.CheckResult{}
+	}
+
 	for _, mService := range c.registry.measuredServices {
 		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
 			continue
@@ -117,11 +121,17 @@ func (c Controller) collectChecksFromCachesFor(categories []string) []fthealth.C
 		if len(healthResult.Checks) == 0 {
 			continue
 		}
+
 		checkResult := NewCheckFromSingularHealthResult(healthResult)
 		checkResult.Ack = healthResult.Checks[0].Ack
 		checkResults = append(checkResults, checkResult)
+		for _, category := range mService.service.Categories {
+			if categoryResults, exists := categorisedResults[category]; exists {
+				categorisedResults[category] = append(categoryResults, checkResult)
+			}
+		}
 	}
-	return checkResults
+	return checkResults, categorisedResults
 }
 
 func (c Controller) runChecksFor(categories []string) ([]fthealth.CheckResult, map[string][]fthealth.CheckResult) {

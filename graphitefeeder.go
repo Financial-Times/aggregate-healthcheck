@@ -21,10 +21,10 @@ type GraphiteFeeder struct {
 	environment string
 	connection  net.Conn
 	ticker      *time.Ticker
-	registry    *ServiceRegistry
+	registry    ServiceRegistry
 }
 
-func NewGraphiteFeeder(host string, port int, environment string, registry *ServiceRegistry) *GraphiteFeeder {
+func NewGraphiteFeeder(host string, port int, environment string, registry ServiceRegistry) *GraphiteFeeder {
 	connection := tcpConnect(host, port)
 	ticker := time.NewTicker(60 * time.Second)
 	return &GraphiteFeeder{host, port, environment, connection, ticker, registry}
@@ -56,7 +56,7 @@ func (g GraphiteFeeder) feed() {
 }
 
 func (g GraphiteFeeder) sendBuffers() error {
-	for _, mService := range g.registry.measuredServices {
+	for _, mService := range g.registry.MeasuredServices() {
 		err := g.sendOneBuffer(mService)
 		if err != nil {
 			return err

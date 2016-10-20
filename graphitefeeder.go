@@ -56,7 +56,7 @@ func (g GraphiteFeeder) feed() {
 }
 
 func (g GraphiteFeeder) sendBuffers() error {
-	for _, mService := range g.registry.MeasuredServices() {
+	for _, mService := range g.registry.measuredServices() {
 		err := g.sendOneBuffer(mService)
 		if err != nil {
 			return err

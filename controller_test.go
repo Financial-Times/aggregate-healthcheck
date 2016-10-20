@@ -17,41 +17,41 @@ type MockRegistry struct {
 	mock.Mock
 }
 
-func (r *MockRegistry) Categories() map[string]Category {
+func (r MockRegistry) categories() map[string]Category {
 	args := r.Called()
 	return args.Get(0).(map[string]Category)
 }
 
-func (r *MockRegistry) MatchingCategories(categories []string) []string {
+func (r MockRegistry) matchingCategories(categories []string) []string {
 	args := r.Called(categories)
 	return args.Get(0).([]string)
 }
 
-func (r *MockRegistry) AreResilient(categories []string) bool {
+func (r MockRegistry) areResilient(categories []string) bool {
 	args := r.Called(categories)
 	return args.Bool(0)
 }
 
-func (r *MockRegistry) MeasuredServices() map[string]MeasuredService {
+func (r MockRegistry) measuredServices() map[string]MeasuredService {
 	args := r.Called()
 	return args.Get(0).(map[string]MeasuredService)
 }
 
-func (r *MockRegistry) Checker() HealthChecker {
+func (r MockRegistry) checker() HealthChecker {
 	args := r.Called()
 	return args.Get(0).(HealthChecker)
 }
 
-func (r *MockRegistry) GetAck(serviceKey string) string {
+func (r MockRegistry) getAck(serviceKey string) string {
 	args := r.Called(serviceKey)
 	return args.String(0)
 }
 
-func (r *MockRegistry) DisableCategoryIfSticky(category string) {
+func (r MockRegistry) disableCategoryIfSticky(category string) {
 	r.Called(category)
 }
 
-func (r *MockRegistry) UpdateCachedAndBufferedHealth(service *MeasuredService, result *fthealth.HealthResult) {
+func (r MockRegistry) updateCachedAndBufferedHealth(service *MeasuredService, result *fthealth.HealthResult) {
 	r.Called(service, result)
 }
 
@@ -78,7 +78,7 @@ func mockCategories(r *MockRegistry, enabled []string, disabled []string) {
 		categories[cat] = Category{Name: cat, Enabled: false}
 	}
 
-	r.On("Categories").Return(categories)
+	r.On("categories").Return(categories)
 }
 
 func mockServices(r *MockRegistry, healthyServicesAndCategories map[string][]string, unhealthyServicesAndCategories map[string][]string) {
@@ -86,7 +86,7 @@ func mockServices(r *MockRegistry, healthyServicesAndCategories map[string][]str
 
 	c := new(MockHealthChecker)
 	c.On("IsHighSeverity", mock.MatchedBy(any)).Return(false)
-	r.On("Checker").Return(c)
+	r.On("checker").Return(c)
 
 	measuredServices := make(map[string]MeasuredService)
 
@@ -106,9 +106,9 @@ func mockServices(r *MockRegistry, healthyServicesAndCategories map[string][]str
 		c.On("Check", s).Return("nok", errors.New("Service "+service+" is unhealthy"))
 	}
 
-	r.On("MeasuredServices").Return(measuredServices)
-	r.On("GetAck", mock.MatchedBy(any)).Return("")
-	r.On("UpdateCachedAndBufferedHealth", mock.MatchedBy(any), mock.MatchedBy(any)).Return()
+	r.On("measuredServices").Return(measuredServices)
+	r.On("getAck", mock.MatchedBy(any)).Return("")
+	r.On("updateCachedAndBufferedHealth", mock.MatchedBy(any), mock.MatchedBy(any)).Return()
 }
 
 func TestCatEnabledWhenAllEnabled(t *testing.T) {
@@ -209,8 +209,8 @@ func TestHandleGtgOk(t *testing.T) {
 	controller := NewController(registry, &env)
 
 	mockCategories(registry, []string{"foo"}, []string{})
-	registry.On("MatchingCategories", []string{"foo"}).Return([]string{"Test Service"})
-	registry.On("AreResilient", mock.MatchedBy(any)).Return(false)
+	registry.On("matchingCategories", []string{"foo"}).Return([]string{"Test Service"})
+	registry.On("areResilient", mock.MatchedBy(any)).Return(false)
 
 	req, _ := http.NewRequest("GET", "http://www.example.com/__gtg?categories=foo&cache=false", nil)
 	w := httptest.NewRecorder()
@@ -253,9 +253,9 @@ func TestHandleGtgUnhealthySetsDisabledIfSticky(t *testing.T) {
 	controller := NewController(registry, &env)
 
 	mockCategories(registry, []string{"foo"}, []string{})
-	registry.On("MatchingCategories", []string{"foo"}).Return([]string{"Test Service"})
-	registry.On("AreResilient", mock.MatchedBy(any)).Return(false)
-	registry.On("DisableCategoryIfSticky", "foo").Return()
+	registry.On("matchingCategories", []string{"foo"}).Return([]string{"Test Service"})
+	registry.On("areResilient", mock.MatchedBy(any)).Return(false)
+	registry.On("disableCategoryIfSticky", "foo").Return()
 
 	req, _ := http.NewRequest("GET", "http://www.example.com/__gtg?categories=foo&cache=false", nil)
 	w := httptest.NewRecorder()
@@ -284,9 +284,9 @@ func TestHandleGtgUnhealthySetsUnhealthyCategoriesOnlyDisabled(t *testing.T) {
 	controller := NewController(registry, &env)
 
 	mockCategories(registry, []string{"foo", "bar"}, []string{})
-	registry.On("MatchingCategories", []string{"foo", "bar"}).Return([]string{"Test Service 1", "Test Service 2"})
-	registry.On("AreResilient", mock.MatchedBy(any)).Return(false)
-	registry.On("DisableCategoryIfSticky", "bar").Return() // only expect to be called for category "bar"
+	registry.On("matchingCategories", []string{"foo", "bar"}).Return([]string{"Test Service 1", "Test Service 2"})
+	registry.On("areResilient", mock.MatchedBy(any)).Return(false)
+	registry.On("disableCategoryIfSticky", "bar").Return() // only expect to be called for category "bar"
 
 	req, _ := http.NewRequest("GET", "http://www.example.com/__gtg?categories=foo,bar&cache=false", nil)
 	w := httptest.NewRecorder()

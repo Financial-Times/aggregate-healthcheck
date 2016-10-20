@@ -66,23 +66,23 @@ type servicesMap map[string]Service
 type categoriesMap map[string]Category
 
 type ServiceRegistry interface {
-	MatchingCategories([]string) []string
-	AreResilient([]string) bool
-	MeasuredServices() map[string]MeasuredService
-	Checker() HealthChecker
-	GetAck(string) string
-	DisableCategoryIfSticky(string)
-	Categories() map[string]Category
-	UpdateCachedAndBufferedHealth(*MeasuredService, *fthealth.HealthResult)
+	matchingCategories([]string) []string
+	areResilient([]string) bool
+	measuredServices() map[string]MeasuredService
+	checker() HealthChecker
+	getAck(string) string
+	disableCategoryIfSticky(string)
+	categories() map[string]Category
+	updateCachedAndBufferedHealth(*MeasuredService, *fthealth.HealthResult)
 }
 
 type EtcdServiceRegistry struct {
-	etcd             client.KeysAPI
-	vulcandAddr      string
-	checker          HealthChecker
-	services         servicesMap
-	categories       categoriesMap
-	measuredServices map[string]MeasuredService
+	etcd              client.KeysAPI
+	vulcandAddr       string
+	_checker          HealthChecker
+	services          servicesMap
+	_categories       categoriesMap
+	_measuredServices map[string]MeasuredService
 }
 
 func NewCocoServiceRegistry(etcd client.KeysAPI, vulcandAddr string, checker HealthChecker) *EtcdServiceRegistry {
@@ -92,19 +92,19 @@ func NewCocoServiceRegistry(etcd client.KeysAPI, vulcandAddr string, checker Hea
 	return &EtcdServiceRegistry{etcd, vulcandAddr, checker, services, categories, measuredServices}
 }
 
-func (r *EtcdServiceRegistry) MeasuredServices() map[string]MeasuredService {
-	return r.measuredServices
+func (r EtcdServiceRegistry) measuredServices() map[string]MeasuredService {
+	return r._measuredServices
 }
 
-func (r *EtcdServiceRegistry) Checker() HealthChecker {
-	return r.checker
+func (r EtcdServiceRegistry) checker() HealthChecker {
+	return r._checker
 }
 
-func (r *EtcdServiceRegistry) Categories() map[string]Category {
-	return r.categories
+func (r EtcdServiceRegistry) categories() map[string]Category {
+	return r._categories
 }
 
-func (r *EtcdServiceRegistry) watchServices() {
+func (r EtcdServiceRegistry) watchServices() {
 	watcher := r.etcd.Watcher(servicesKeyPre, &client.WatcherOptions{AfterIndex: 0, Recursive: true})
 	limiter := NewEventLimiter(func() {
 		r.redefineServiceList()
@@ -121,30 +121,30 @@ func (r *EtcdServiceRegistry) watchServices() {
 	}
 }
 
-func (r *EtcdServiceRegistry) updateMeasuredServiceList() {
+func (r EtcdServiceRegistry) updateMeasuredServiceList() {
 	// adding new services, not touching existing
 	for key := range r.services {
 		service := r.services[key]
-		if mService, ok := r.measuredServices[service.Name]; !ok || !reflect.DeepEqual(service, r.measuredServices[service.Name].service) {
+		if mService, ok := r._measuredServices[service.Name]; !ok || !reflect.DeepEqual(service, r._measuredServices[service.Name].service) {
 			if ok {
 				mService.cachedHealth.terminate <- true
 			}
 			newMService := NewMeasuredService(&service)
-			r.measuredServices[service.Name] = newMService
+			r._measuredServices[service.Name] = newMService
 			go r.scheduleCheck(&newMService, time.NewTimer(0))
 		}
 	}
 
 	// removing services that don't exist, not touching the rest
-	for _, mService := range r.measuredServices {
+	for _, mService := range r._measuredServices {
 		if _, ok := r.services[mService.service.Name]; !ok {
-			delete(r.measuredServices, mService.service.Name)
+			delete(r._measuredServices, mService.service.Name)
 			mService.cachedHealth.terminate <- true
 		}
 	}
 }
 
-func (r *EtcdServiceRegistry) watchCategories() {
+func (r EtcdServiceRegistry) watchCategories() {
 	watcher := r.etcd.Watcher(categoriesKeyPre, &client.WatcherOptions{AfterIndex: 0, Recursive: true})
 	limiter := NewEventLimiter(func() {
 		r.redefineCategoryList()
@@ -160,7 +160,7 @@ func (r *EtcdServiceRegistry) watchCategories() {
 	}
 }
 
-func (r *EtcdServiceRegistry) redefineServiceList() {
+func (r EtcdServiceRegistry) redefineServiceList() {
 	infoLogger.Print("Reloading service list.")
 	services := make(map[string]Service)
 	servicesResp, err := r.etcd.Get(context.Background(), servicesKeyPre, &client.GetOptions{Sort: true})
@@ -192,14 +192,14 @@ func (r *EtcdServiceRegistry) redefineServiceList() {
 		if err == nil {
 			categories = append(categories, strings.Split(categoriesResp.Node.Value, ",")...)
 		}
-		ack := r.GetAck(serviceNode.Key)
+		ack := r.getAck(serviceNode.Key)
 		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: fmt.Sprintf(pathPre, name, path), Categories: categories, Ack: ack, ServiceKey: serviceNode.Key}
 	}
 	r.services = services
 	infoLogger.Printf("%v", r.services)
 }
 
-func (r *EtcdServiceRegistry) redefineCategoryList() {
+func (r EtcdServiceRegistry) redefineCategoryList() {
 	infoLogger.Print("Reloading category list.")
 	categories := initCategoryList()
 	categoriesResp, err := r.etcd.Get(context.Background(), categoriesKeyPre, &client.GetOptions{Sort: true})
@@ -224,11 +224,11 @@ func (r *EtcdServiceRegistry) redefineCategoryList() {
 
 		categories[name] = Category{Name: name, Period: period, IsResilient: resilient, Enabled: enabled}
 	}
-	r.categories = categories
-	infoLogger.Printf("%v", r.categories)
+	r._categories = categories
+	infoLogger.Printf("%v", r._categories)
 }
 
-func (r *EtcdServiceRegistry) catPeriod(catKey string) (period time.Duration) {
+func (r EtcdServiceRegistry) catPeriod(catKey string) (period time.Duration) {
 	period = defaultDuration
 	periodResp, err := r.etcd.Get(context.Background(), catKey+periodKeySuffix, &client.GetOptions{Sort: true})
 	if err != nil {
@@ -244,7 +244,7 @@ func (r *EtcdServiceRegistry) catPeriod(catKey string) (period time.Duration) {
 	return
 }
 
-func (r *EtcdServiceRegistry) catResilient(catKey string) (resilient bool) {
+func (r EtcdServiceRegistry) catResilient(catKey string) (resilient bool) {
 	resilient = false
 	resilientResp, err := r.etcd.Get(context.Background(), catKey+resilientSuffix, nil)
 	if err != nil {
@@ -258,7 +258,7 @@ func (r *EtcdServiceRegistry) catResilient(catKey string) (resilient bool) {
 	return
 }
 
-func (r *EtcdServiceRegistry) DisableCategoryIfSticky(cat string) {
+func (r EtcdServiceRegistry) disableCategoryIfSticky(cat string) {
 	sticky := false
 	stickyResp, err := r.etcd.Get(context.Background(), categoriesKeyPre+"/"+cat+stickySuffix, nil)
 	if err != nil {
@@ -279,7 +279,7 @@ func (r *EtcdServiceRegistry) DisableCategoryIfSticky(cat string) {
 	}
 }
 
-func (r *EtcdServiceRegistry) catEnabled(catKey string) (enabled bool) {
+func (r EtcdServiceRegistry) catEnabled(catKey string) (enabled bool) {
 	enabled = true
 	enabledResp, err := r.etcd.Get(context.Background(), catKey+enabledSuffix, nil)
 	if err != nil {
@@ -293,7 +293,7 @@ func (r *EtcdServiceRegistry) catEnabled(catKey string) (enabled bool) {
 	return
 }
 
-func (r *EtcdServiceRegistry) GetAck(serviceKey string) string {
+func (r EtcdServiceRegistry) getAck(serviceKey string) string {
 
 	ackDetails, err := r.etcd.Get(context.Background(), serviceKey+ackSuffix, nil)
 	if err != nil {
@@ -314,17 +314,17 @@ func (r EtcdServiceRegistry) scheduleCheck(mService *MeasuredService, timer *tim
 	healthResult := fthealth.RunCheck(mService.service.Name,
 		fmt.Sprintf("Checks the health of %v", mService.service.Name),
 		true,
-		NewServiceHealthCheck(*mService.service, r.checker))
+		NewServiceHealthCheck(*mService.service, r._checker))
 
 	healthResult.Checks[0].Ack = mService.service.Ack
 
-	r.UpdateCachedAndBufferedHealth(mService, &healthResult)
+	r.updateCachedAndBufferedHealth(mService, &healthResult)
 
 	waitDuration := r.findShortestPeriod(*mService.service)
 	go r.scheduleCheck(mService, time.NewTimer(waitDuration))
 }
 
-func (r EtcdServiceRegistry) UpdateCachedAndBufferedHealth(mService *MeasuredService, healthResult *fthealth.HealthResult) {
+func (r EtcdServiceRegistry) updateCachedAndBufferedHealth(mService *MeasuredService, healthResult *fthealth.HealthResult) {
 	// write to cache
 	mService.cachedHealth.toWriteToCache <- *healthResult
 
@@ -338,7 +338,7 @@ func (r EtcdServiceRegistry) UpdateCachedAndBufferedHealth(mService *MeasuredSer
 func (r EtcdServiceRegistry) findShortestPeriod(service Service) time.Duration {
 	minDuration := defaultDuration
 	for _, categoryName := range service.Categories {
-		category, ok := r.categories[categoryName]
+		category, ok := r._categories[categoryName]
 		if !ok {
 			continue
 		}
@@ -350,19 +350,19 @@ func (r EtcdServiceRegistry) findShortestPeriod(service Service) time.Duration {
 }
 
 //returns true, only if all categoryNames are considered resilient.
-func (r EtcdServiceRegistry) AreResilient(categoryNames []string) bool {
+func (r EtcdServiceRegistry) areResilient(categoryNames []string) bool {
 	for _, c := range categoryNames {
-		if !r.categories[c].IsResilient {
+		if !r._categories[c].IsResilient {
 			return false
 		}
 	}
 	return true
 }
 
-func (r EtcdServiceRegistry) MatchingCategories(s []string) []string {
+func (r EtcdServiceRegistry) matchingCategories(s []string) []string {
 	var result []string
 	for _, a := range s {
-		if _, ok := r.categories[a]; ok {
+		if _, ok := r._categories[a]; ok {
 			result = append(result, a)
 		}
 	}

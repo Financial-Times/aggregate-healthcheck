@@ -160,7 +160,7 @@ func (r EtcdServiceRegistry) watchCategories() {
 	}
 }
 
-func (r EtcdServiceRegistry) redefineServiceList() {
+func (r *EtcdServiceRegistry) redefineServiceList() {
 	infoLogger.Print("Reloading service list.")
 	services := make(map[string]Service)
 	servicesResp, err := r.etcd.Get(context.Background(), servicesKeyPre, &client.GetOptions{Sort: true})
@@ -199,7 +199,7 @@ func (r EtcdServiceRegistry) redefineServiceList() {
 	infoLogger.Printf("%v", r.services)
 }
 
-func (r EtcdServiceRegistry) redefineCategoryList() {
+func (r *EtcdServiceRegistry) redefineCategoryList() {
 	infoLogger.Print("Reloading category list.")
 	categories := initCategoryList()
 	categoriesResp, err := r.etcd.Get(context.Background(), categoriesKeyPre, &client.GetOptions{Sort: true})

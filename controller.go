@@ -19,7 +19,7 @@ var serverInstanceRegex = regexp.MustCompile("-\\d+$")
 var defaultCategories = []string{"default"}
 
 type Controller struct {
-	registry    *ServiceRegistry
+	registry    ServiceRegistry
 	environment *string
 }
 
@@ -47,19 +47,21 @@ type Acknowledge struct {
 	Count   int
 }
 
-func NewController(registry *ServiceRegistry, environment *string) *Controller {
+func NewController(registry ServiceRegistry, environment *string) *Controller {
 	return &Controller{registry, environment}
 }
 
-func (c Controller) buildHealthResultFor(categories []string, useCache bool) (fthealth.HealthResult, []string) {
+func (c Controller) buildHealthResultFor(categories []string, useCache bool) (fthealth.HealthResult, []string, []string) {
 	var checkResults []fthealth.CheckResult
+	var categorisedResults map[string][]fthealth.CheckResult
+	unhealthyCategories := []string{}
 	matchingCategories := c.registry.matchingCategories(categories)
 	desc := "Health of the whole cluster of the moment served directly."
 	if useCache {
-		checkResults = c.collectChecksFromCachesFor(categories)
+		checkResults, categorisedResults = c.collectChecksFromCachesFor(categories)
 		desc = "Health of the whole cluster served from cache."
 	} else {
-		checkResults = c.runChecksFor(categories)
+		checkResults, categorisedResults = c.runChecksFor(categories)
 	}
 	var finalOk bool
 	var finalSeverity uint8
@@ -67,6 +69,26 @@ func (c Controller) buildHealthResultFor(categories []string, useCache bool) (ft
 		finalOk, finalSeverity = c.computeResilientHealthResult(checkResults)
 	} else {
 		finalOk, finalSeverity = c.computeNonResilientHealthResult(checkResults)
+	}
+
+	for category, results := range categorisedResults {
+		var catOk bool
+		if c.registry.areResilient([]string{category}) {
+			catOk, _ = c.computeResilientHealthResult(results)
+		} else {
+			catOk, _ = c.computeNonResilientHealthResult(results)
+		}
+
+		if !catOk {
+			unhealthyServices := []string{}
+			for _, result := range results {
+				if !result.Ok {
+					unhealthyServices = append(unhealthyServices, result.Name)
+				}
+			}
+			warnLogger.Printf("In category %v, the following services are unhealthy: %v", category, strings.Join(unhealthyServices, ","))
+			unhealthyCategories = append(unhealthyCategories, category)
+		}
 	}
 
 	health := fthealth.HealthResult{
@@ -79,12 +101,18 @@ func (c Controller) buildHealthResultFor(categories []string, useCache bool) (ft
 	}
 	sort.Sort(ByName(health.Checks))
 
-	return health, matchingCategories
+	return health, matchingCategories, unhealthyCategories
 }
 
-func (c Controller) collectChecksFromCachesFor(categories []string) []fthealth.CheckResult {
+func (c Controller) collectChecksFromCachesFor(categories []string) ([]fthealth.CheckResult, map[string][]fthealth.CheckResult) {
 	var checkResults []fthealth.CheckResult
-	for _, mService := range c.registry.measuredServices {
+
+	categorisedResults := make(map[string][]fthealth.CheckResult)
+	for _, c := range categories {
+		categorisedResults[c] = []fthealth.CheckResult{}
+	}
+
+	for _, mService := range c.registry.measuredServices() {
 		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
 			continue
 		}
@@ -92,21 +120,42 @@ func (c Controller) collectChecksFromCachesFor(categories []string) []fthealth.C
 		if len(healthResult.Checks) == 0 {
 			continue
 		}
+
 		checkResult := NewCheckFromSingularHealthResult(healthResult)
 		checkResult.Ack = healthResult.Checks[0].Ack
 		checkResults = append(checkResults, checkResult)
+		for _, category := range mService.service.Categories {
+			if categoryResults, exists := categorisedResults[category]; exists {
+				categorisedResults[category] = append(categoryResults, checkResult)
+			}
+		}
 	}
-	return checkResults
+	return checkResults, categorisedResults
 }
 
-func (c Controller) runChecksFor(categories []string) []fthealth.CheckResult {
+func (c Controller) runChecksFor(categories []string) ([]fthealth.CheckResult, map[string][]fthealth.CheckResult) {
 	var checks []fthealth.Check
+
+	categorisedChecks := make(map[string][]*fthealth.Check)
+	categorisedResults := make(map[string][]fthealth.CheckResult)
+	for _, c := range categories {
+		categorisedChecks[c] = []*fthealth.Check{}
+		categorisedResults[c] = []fthealth.CheckResult{}
+	}
+
 	var acks map[string]string = make(map[string]string)
-	for _, mService := range c.registry.measuredServices {
+	for _, mService := range c.registry.measuredServices() {
 		if !containsAtLeastOneFrom(categories, mService.service.Categories) {
 			continue
 		}
-		checks = append(checks, NewServiceHealthCheck(*mService.service, c.registry.checker))
+		check := NewServiceHealthCheck(*mService.service, c.registry.checker())
+		checks = append(checks, check)
+		for _, category := range mService.service.Categories {
+			if categoryChecks, exists := categorisedChecks[category]; exists {
+				categorisedChecks[category] = append(categoryChecks, &check)
+			}
+		}
+
 		ack := c.registry.getAck(mService.service.ServiceKey)
 
 		if ack != "" {
@@ -121,10 +170,18 @@ func (c Controller) runChecksFor(categories []string) []fthealth.CheckResult {
 			ch.Ack = ack
 		}
 		result = append(result, ch)
+
+		for category, checks := range categorisedChecks {
+			for _, check := range checks {
+				if check.Name == ch.Name {
+					categorisedResults[category] = append(categorisedResults[category], ch)
+				}
+			}
+		}
 	}
 	updateCachedAndBufferedHealth(c.registry, healthChecks)
 
-	return result
+	return result, categorisedResults
 }
 
 func (c Controller) computeResilientHealthResult(checkResults []fthealth.CheckResult) (bool, uint8) {
@@ -182,21 +239,21 @@ func (c Controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	healthResults, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
+	healthResults, validCategories, unhealthyCategories := c.buildHealthResultFor(categories, useCache(r.URL))
 	if len(validCategories) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	if !healthResults.Ok {
-		for _, validCat := range validCategories {
-			c.registry.disableCategoryIfSticky(validCat)
+		for _, cat := range unhealthyCategories {
+			c.registry.disableCategoryIfSticky(cat)
 		}
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 }
 
 func (c Controller) catEnabled(validCats []string) bool {
-	for _, cat := range c.registry.categories {
+	for _, cat := range c.registry.categories() {
 		for _, validCat := range validCats {
 			if validCat == cat.Name && !cat.Enabled {
 				return false
@@ -208,7 +265,7 @@ func (c Controller) catEnabled(validCats []string) bool {
 
 func (c Controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
-	healthResults, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
+	healthResults, validCategories, _ := c.buildHealthResultFor(categories, useCache(r.URL))
 	w.Header().Set("Content-Type", "application/json")
 	if len(validCategories) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
@@ -224,7 +281,7 @@ func (c Controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	w.Header().Add("Content-Type", "text/html")
-	health, validCategories := c.buildHealthResultFor(categories, useCache(r.URL))
+	health, validCategories, _ := c.buildHealthResultFor(categories, useCache(r.URL))
 	if len(validCategories) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("Category does not exist."))
@@ -284,10 +341,11 @@ func formatServiceName(name string) string {
 	return string(nameAsRunes)
 }
 
-func updateCachedAndBufferedHealth(registry *ServiceRegistry, healthChecks []fthealth.CheckResult) {
+func updateCachedAndBufferedHealth(registry ServiceRegistry, healthChecks []fthealth.CheckResult) {
 	healthResults := splitChecksInHealthResults(healthChecks)
+	measuredServices := registry.measuredServices()
 	for _, healthResult := range healthResults {
-		if mService, found := registry.measuredServices[healthResult.Checks[0].Name]; found {
+		if mService, found := measuredServices[healthResult.Checks[0].Name]; found {
 			registry.updateCachedAndBufferedHealth(&mService, &healthResult)
 		}
 	}

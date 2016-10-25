@@ -5,58 +5,30 @@ import (
 
 	"github.com/coreos/etcd/client"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"golang.org/x/net/context"
 )
 
-type MockEtcdKeysAPI struct {
-	mock.Mock
+type TestEtcdKeysAPI struct {
+	response *client.Response
 }
 
-func (etcd MockEtcdKeysAPI) Get(ctx context.Context, key string, opts *client.GetOptions) (*client.Response, error) {
-	args := etcd.Called()
-	return args.Get(0).(*client.Response), args.Error(1)
+func (etcd TestEtcdKeysAPI) Get(ctx context.Context, key string, opts *client.GetOptions) (*client.Response, error) {
+	return etcd.response, nil
 }
 
-func (etcd MockEtcdKeysAPI) Set(ctx context.Context, key, value string, opts *client.SetOptions) (*client.Response, error) {
-	args := etcd.Called()
-	return args.Get(0).(*client.Response), args.Error(1)
+func (etcd TestEtcdKeysAPI) Set(ctx context.Context, key, value string, opts *client.SetOptions) (*client.Response, error) {
+	return etcd.response, nil
 }
 
-func (etcd MockEtcdKeysAPI) Delete(ctx context.Context, key string, opts *client.DeleteOptions) (*client.Response, error) {
-	args := etcd.Called()
-	return args.Get(0).(*client.Response), args.Error(1)
-}
-
-func (etcd MockEtcdKeysAPI) Create(ctx context.Context, key, value string) (*client.Response, error) {
-	args := etcd.Called()
-	return args.Get(0).(*client.Response), args.Error(1)
-}
-
-func (etcd MockEtcdKeysAPI) CreateInOrder(ctx context.Context, dir, value string, opts *client.CreateInOrderOptions) (*client.Response, error) {
-	args := etcd.Called()
-	return args.Get(0).(*client.Response), args.Error(1)
-}
-
-func (etcd MockEtcdKeysAPI) Update(ctx context.Context, key, value string) (*client.Response, error) {
-	args := etcd.Called()
-	return args.Get(0).(*client.Response), args.Error(1)
-}
-
-func (etcd MockEtcdKeysAPI) Watcher(key string, opts *client.WatcherOptions) client.Watcher {
-	args := etcd.Called()
-	return args.Get(0).(client.Watcher)
+func (etcd TestEtcdKeysAPI) Watcher(key string, opts *client.WatcherOptions) client.Watcher {
+	return nil
 }
 
 func TestRedefineCategoryListEmpty(t *testing.T) {
-	any := func(x interface{}) bool { return true }
-
 	categoryNodes := client.Nodes{}
 	categoryFolder := client.Node{Key: "/ft/healthcheck-categories", Dir: true, Nodes: categoryNodes}
 
-	etcd := new(MockEtcdKeysAPI)
-	response := client.Response{Node: &categoryFolder}
-	etcd.On("Get", mock.MatchedBy(any), mock.MatchedBy(any), mock.MatchedBy(any)).Return(&response, nil)
+	etcd := TestEtcdKeysAPI{&client.Response{Node: &categoryFolder}}
 
 	registry := NewCocoServiceRegistry(etcd, "127.0.0.1", nil)
 
@@ -68,15 +40,11 @@ func TestRedefineCategoryListEmpty(t *testing.T) {
 }
 
 func TestRedefineCategoryList(t *testing.T) {
-	any := func(x interface{}) bool { return true }
-
 	fooCategory := client.Node{Key: "/ft/healthcheck-categories/foo", Dir: true, Nodes: client.Nodes{}}
 	categoryNodes := client.Nodes{&fooCategory}
 	categoryFolder := client.Node{Key: "/ft/healthcheck-categories", Dir: true, Nodes: categoryNodes}
 
-	etcd := new(MockEtcdKeysAPI)
-	response := client.Response{Node: &categoryFolder}
-	etcd.On("Get", mock.MatchedBy(any), mock.MatchedBy(any), mock.MatchedBy(any)).Return(&response, nil)
+	etcd := TestEtcdKeysAPI{&client.Response{Node: &categoryFolder}}
 
 	registry := NewCocoServiceRegistry(etcd, "127.0.0.1", nil)
 

@@ -77,7 +77,7 @@ type ServiceRegistry interface {
 }
 
 type EtcdServiceRegistry struct {
-	etcd              client.KeysAPI
+	etcd              EtcdHealthCheckKeysAPI
 	vulcandAddr       string
 	_checker          HealthChecker
 	services          servicesMap
@@ -85,7 +85,13 @@ type EtcdServiceRegistry struct {
 	_measuredServices map[string]MeasuredService
 }
 
-func NewCocoServiceRegistry(etcd client.KeysAPI, vulcandAddr string, checker HealthChecker) *EtcdServiceRegistry {
+type EtcdHealthCheckKeysAPI interface {
+	Get(ctx context.Context, key string, opts *client.GetOptions) (*client.Response, error)
+	Set(ctx context.Context, key, value string, opts *client.SetOptions) (*client.Response, error)
+	Watcher(key string, opts *client.WatcherOptions) client.Watcher
+}
+
+func NewCocoServiceRegistry(etcd EtcdHealthCheckKeysAPI, vulcandAddr string, checker HealthChecker) *EtcdServiceRegistry {
 	services := make(map[string]Service)
 	categories := make(map[string]Category)
 	measuredServices := make(map[string]MeasuredService)

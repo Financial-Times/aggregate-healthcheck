@@ -57,6 +57,12 @@ func main() {
 		Desc:   "Environment tag (e.g. local, pre-prod, prod-uk)",
 		EnvVar: "ENVIRONMENT",
 	})
+	severityOneApps := app.String(cli.StringOpt{
+		Name:   "sev-1-apps",
+		Value:  "synthetic-list-publication-monitor,synthetic-article-publication-monitor,synthetic-image-publication-monitor,publish-availability-monitor",
+		Desc:   "Comma-separated list of sev 1 apps",
+		EnvVar: "SEV_1_APPS",
+	})
 
 	app.Action = func() {
 		initLogs(os.Stdout, os.Stdout, os.Stderr)
@@ -73,7 +79,9 @@ func main() {
 			Timeout:   5 * time.Second,
 			Transport: transport,
 		}
-		checker := NewHTTPHealthChecker(httpClient)
+
+		sos := strings.Split(*severityOneApps, ",")
+		checker := NewHTTPHealthChecker(httpClient, sos)
 
 		cfg := etcdClient.Config{
 			Endpoints:               strings.Split(*etcdPeers, ","),
@@ -85,6 +93,8 @@ func main() {
 			log.Fatal(err)
 		}
 		etcdKeysAPI := etcdClient.NewKeysAPI(etcd)
+
+
 
 		registry := NewCocoServiceRegistry(etcdKeysAPI, *vulcandAddr, checker)
 		registry.redefineCategoryList()

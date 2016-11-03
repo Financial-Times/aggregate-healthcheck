@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
@@ -77,6 +78,7 @@ type ServiceRegistry interface {
 }
 
 type EtcdServiceRegistry struct {
+	sync.Mutex
 	etcd              EtcdHealthCheckKeysAPI
 	etcdInterval      time.Duration
 	vulcandAddr       string
@@ -96,7 +98,7 @@ func NewCocoServiceRegistry(etcd EtcdHealthCheckKeysAPI, vulcandAddr string, che
 	services := make(map[string]Service)
 	categories := make(map[string]Category)
 	measuredServices := make(map[string]MeasuredService)
-	return &EtcdServiceRegistry{etcd, time.Duration(60) * time.Second, vulcandAddr, checker, services, categories, measuredServices}
+	return &EtcdServiceRegistry{sync.Mutex{}, etcd, time.Duration(60) * time.Second, vulcandAddr, checker, services, categories, measuredServices}
 }
 
 func (r *EtcdServiceRegistry) measuredServices() map[string]MeasuredService {
@@ -108,6 +110,9 @@ func (r *EtcdServiceRegistry) checker() HealthChecker {
 }
 
 func (r *EtcdServiceRegistry) categories() map[string]Category {
+	r.Lock()
+	defer r.Unlock()
+
 	return r._categories
 }
 
@@ -231,6 +236,10 @@ func (r *EtcdServiceRegistry) redefineCategoryList() {
 
 		categories[name] = Category{Name: name, Period: period, IsResilient: resilient, Enabled: enabled}
 	}
+
+	r.Lock()
+	defer r.Unlock()
+
 	r._categories = categories
 	infoLogger.Printf("%v", r._categories)
 }

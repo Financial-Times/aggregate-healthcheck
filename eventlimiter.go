@@ -9,8 +9,8 @@ type EventLimiter struct {
 	timePassed   chan bool
 }
 
-func NewEventLimiter(f func()) *EventLimiter {
-	ticker := time.NewTicker(60 * time.Second)
+func NewEventLimiter(f func(), interval time.Duration) *EventLimiter {
+	ticker := time.NewTicker(interval)
 	trigger := make(chan bool, 1)
 	wasTriggered := make(chan bool, 1)
 	timePassed := make(chan bool, 1)

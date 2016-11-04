@@ -89,9 +89,10 @@ func TestWatchCategories(t *testing.T) {
 	registry.etcdInterval = time.Second
 
 	go registry.watchCategories()
-	time.Sleep(time.Duration(2) * time.Second)
+	time.Sleep(2 * time.Second)
 
 	actual := registry.categories()
+
 	assert.Len(t, actual, 2, "category list")
 	_, categoryPresent := actual["default"]
 	assert.True(t, categoryPresent, "default category should be present")

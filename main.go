@@ -115,6 +115,7 @@ func main() {
 		r.HandleFunc("/", handler)
 		r.HandleFunc("/__health", handler)
 		r.HandleFunc("/__gtg", gtgHandler)
+		r.PathPrefix("/").Handler(http.StripPrefix("/", http.FileServer(http.Dir("resources/"))))
 		err = http.ListenAndServe(":8080", r)
 		if err != nil {
 			errorLogger.Println("Can't set up HTTP listener on 8080.")

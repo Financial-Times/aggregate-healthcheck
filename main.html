@@ -1,42 +1,97 @@
 <!DOCTYPE html>
+<html lang="en">
 <head>
     <title>CoCo Aggregate Healthcheck</title>
+    <!-- Latest compiled and minified CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css"
+          integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <!-- Optional theme -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css"
+          integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+
+    <link href="https://cdn.datatables.net/1.10.13/css/jquery.dataTables.min.css" rel="stylesheet"
+          crossorigin="anonymous">
 </head>
 <body>
-<h1>CoCo {{.Environment}} cluster's {{.ValidCategories}} services are
-    {{if .IsHealthy}}<span style='color: green;'>healthy</span>
-    {{else}}
-    {{if .IsCritical}}<span style='color: red;'>CRITICAL</span>
-    {{else}}<span style='color: orange;'>unhealthy</span>
-    {{end}}
-    {{end}}
-    {{if .Ack.IsAcked}} <span style='color: blue;'>({{.Ack.Count}} services acked)</span>
-    {{end}}
-</h1>
-<table style='font-size: 10pt; font-family: MONOSPACE;'>
-    {{with .HealthChecks}}
-    {{range .}}
-    <tr>
-        <td><a href="/health/{{.EtcdName}}/__health">{{.FleetName}}</a></td>
-        <td>&nbsp;
-            {{if .IsHealthy}}<span style='color: green;'>OK</span>
-            {{else}}{{if .IsCritical}}{{if .IsAcked}} <span style='color: blue;'>CRITICAL ACKED</span>{{else}}
-            <span style='color: red;'>CRITICAL</span>{{end}}
-            {{else}}{{if .IsAcked}}<span style='color: blue;'>WARNING ACKED</span>{{else}}<span style='color: orange;'>WARNING</span>{{end}}
+<div class="container-fluid">
+    <h1>CoCo {{.Environment}} cluster's {{.ValidCategories}} services are
+        {{if .IsHealthy}}<span class='text-success'>healthy</span>
+        {{else}}
+        {{if .IsCritical}}<span class='text-danger'>CRITICAL</span>
+        {{else}}<span class='text-warning'>unhealthy</span>
+        {{end}}
+        {{end}}
+        {{if .Ack.IsAcked}} <span class='text-info'>({{.Ack.Count}} services acked)</span>
+        {{end}}
+    </h1>
+    <table id='healthcheck' class='table table-striped table-bordered' cellspacing='0' width='100%'>
+        <thead>
+        <tr>
+            <th>Fleet Name</th>
+            <th>Is Healthy</th>
+            <th>Last Updated</th>
+            <th>Ack msg</th>
+        </tr>
+        </thead>
+        <tbody>
+        {{with .HealthChecks}}
+        {{range .}}
+
+        {{if .IsHealthy}}
+        <tr>
+            {{else}}{{if .IsCritical}}{{if .IsAcked}}
+        <tr class='info'>{{else}}
+        <tr class='danger'>CRITICAL{{end}}
+            {{else}}{{if .IsAcked}}
+        <tr class='info'>{{else}}
+        <tr class='warning'>{{end}}
             {{end}}
             {{end}}
-        </td>
-        <td>&nbsp;</td>
-        <td>&nbsp;{{.LastUpdated}}</td>
-        <td>&nbsp;
-            {{if .IsAcked}}<span style='color: blue;'><em>{{.Ack}}</em></span>
-            {{end}}
-        </td>
-    </tr>
-    {{end}}
-    {{end}}
-</table>
-<p><a href="__health">Refresh health from cache</a></p>
-<p><a href="__health?cache=false">Refresh health without using the cache</a></p>
+            <td><a href="/health/{{.EtcdName}}/__health">{{.FleetName}}</a></td>
+            <td>
+                {{if .IsHealthy}}
+                OK
+                {{else}}
+                {{if .IsCritical}}{{if .IsAcked}}CRITICAL ACKED{{else}}CRITICAL{{end}}
+                {{else}}
+                {{if .IsAcked}}WARNING ACKED{{else}}WARNING{{end}}
+                {{end}}
+                {{end}}
+            </td>
+            <td>{{.LastUpdated}}</td>
+            <td>
+                {{if .IsAcked}}<span style='color: blue;'><em>{{.Ack}}</em></span>
+                {{end}}
+            </td>
+        </tr>
+        {{end}}
+        {{end}}
+        </tbody>
+    </table>
+    <div class='center-block'>
+        <a class='btn btn-primary btn-lg btn-block' role='button' href="__health">Refresh health from cache</a>
+        <a class='btn btn-default btn-lg btn-block' role='button' href="__health?cache=false">Refresh health without
+            using the
+            cache</a>
+    </div>
+</div>
+<!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+<script src="https://code.jquery.com/jquery-1.12.4.min.js"
+        integrity="sha256-ZosEbRLbNQzLpnKIkEdrPv7lOy9C27hHQ+Xp8a4MxAQ="
+        crossorigin="anonymous"></script>
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+        integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
+        crossorigin="anonymous"></script>
+<!-- DataTables' JavaScript -->
+<script src="https://cdn.datatables.net/1.10.13/js/jquery.dataTables.min.js"
+        crossorigin="anonymous"></script>
+<script>
+    $(document).ready(function () {
+        $('#healthcheck').DataTable({
+            paging: false
+        });
+    });
+</script>
 </body>
 </html>

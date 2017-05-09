@@ -10,7 +10,8 @@
     {{else}}<span style='color: orange;'>unhealthy</span>
     {{end}}
     {{end}}
-    {{if .Ack.IsAcked}} <span style='color: blue;'>({{.Ack.Count}} services acked)</span>
+    {{if .ServicesAck.IsAcked}} <span style='color: blue;'>({{.ServicesAck.Count}} services acked)</span>
+    {{if .ClusterAck}} <span style='color: blue;'>(Cluster is acked: {{.ClusterAck}})</span>
     {{end}}
 </h1>
 <table style='font-size: 10pt; font-family: MONOSPACE;'>

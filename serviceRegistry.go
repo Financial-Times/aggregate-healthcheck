@@ -145,13 +145,14 @@ func (r *EtcdServiceRegistry) watchClusterAck() {
 func (r *EtcdServiceRegistry) redefineClusterAck() {
 	infoLogger.Print("Reloading cluster ack")
 	clusterAckResp, err := r.etcd.Get(context.Background(), clusterAckEtcdKey, &client.GetOptions{Sort: true})
-	if err != nil {
-		errorLogger.Printf("Failed to get value from %v: %v.", clusterAckEtcdKey, err.Error())
-		return
-	}
 
 	r.Lock()
 	defer r.Unlock()
+	if err != nil {
+		r._clusterAck = ""
+		errorLogger.Printf("Failed to get value from %v: %v.", clusterAckEtcdKey, err.Error())
+		return
+	}
 
 	r._clusterAck = clusterAckResp.Node.Value
 }

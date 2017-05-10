@@ -11,6 +11,7 @@
     {{end}}
     {{end}}
     {{if .ServicesAck.IsAcked}} <span style='color: blue;'>({{.ServicesAck.Count}} services acked)</span>
+    {{end}}
     {{if .ClusterAck}} <span style='color: blue;'>(Cluster is acked: {{.ClusterAck}})</span>
     {{end}}
 </h1>

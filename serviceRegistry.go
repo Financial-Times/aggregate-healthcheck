@@ -150,7 +150,7 @@ func (r *EtcdServiceRegistry) redefineClusterAck() {
 	defer r.Unlock()
 	if err != nil {
 		r._clusterAck = ""
-		errorLogger.Printf("Failed to get value from %v: %v.", clusterAckEtcdKey, err.Error())
+		errorLogger.Printf("Failed to get value from %v: %v. Removing cluster ack message.", clusterAckEtcdKey, err.Error())
 		return
 	}
 

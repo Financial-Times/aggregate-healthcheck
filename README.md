@@ -23,7 +23,7 @@ Both the above are FT Standard compliant
 You can use both parameters in your query both on the good-to-go and healthcheck and endpoints even with `application/json` Accept header on the latter; e.g. `/__gtg?categories=read&cache=false`
 
 ### Ack support:
-
+#### Service level ack
 Currently if you want to acknowledge a service, you have to manually create an etcd key within the cluster. The etcd key would look like this:
 
 `etcdctl get /ft/healthcheck/foo-service-1/ack`
@@ -34,6 +34,26 @@ The etcd key have to be set in the following way:
 `etcdctl set /ft/healthcheck/foo-service-1/ack 'Details of the ack - who acked the service, why, etc.'`
 
 The ACK that is not needed anymore should be removed also manually from etcd: `etcdctl rm /ft/healthcheck/foo-service-1/ack`
+
+#### Cluster level ack
+The cluster can be acked as a whole.
+
+Consequences of acking the whole cluster:
+- When a cluster is acked, it will appear its dashing tile will be green
+- The UI will have a text message in the heading: (Cluster is acked: ACK-MESSAGE)
+- In the JSON response of agg-hc __health endpoint the main ok field will be true, event though some services might be unhealthy
+
+Note:
+ - The gtg endpoint will have the same functionality as before (it will continue to respond with 503 if it is the case, even though the cluster is acknowledged) to ensure a proper work of failovers
+
+
+To ack the cluster, add the following etcd entry:
+
+`etcdctl set /ft/config/aggregate-healthcheck/cluster-ack <ACK-MESSAGE>`
+
+To remove the ack, remove the etcd entry that holds the ack message:
+
+`etcdctl rm /ft/config/aggregate-healthcheck/cluster-ack`
 
 ### Categories:
 

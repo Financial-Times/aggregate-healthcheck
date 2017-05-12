@@ -94,8 +94,6 @@ func main() {
 		}
 		etcdKeysAPI := etcdClient.NewKeysAPI(etcd)
 
-
-
 		registry := NewCocoServiceRegistry(etcdKeysAPI, *vulcandAddr, checker)
 		registry.redefineCategoryList()
 		registry.redefineServiceList()
@@ -103,6 +101,7 @@ func main() {
 
 		go registry.watchServices()
 		go registry.watchCategories()
+		go registry.watchClusterAck()
 
 		graphiteFeeder := NewGraphiteFeeder(*graphiteHost, *graphitePort, *environment, registry)
 		go graphiteFeeder.feed()

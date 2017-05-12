@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"fmt"
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 )
 
@@ -39,7 +40,8 @@ type AggregateHealthCheck struct {
 	IsHealthy       bool
 	IsCritical      bool
 	HealthChecks    []ServiceHealthCheck
-	Ack             Acknowledge
+	ServicesAck     Acknowledge
+	ClusterAck      string
 }
 
 type Acknowledge struct {
@@ -156,7 +158,7 @@ func (c Controller) runChecksFor(categories []string) ([]fthealth.CheckResult, m
 			}
 		}
 
-		ack := c.registry.getAck(mService.service.ServiceKey)
+		ack := c.registry.getServiceAck(mService.service.ServiceKey)
 
 		if ack != "" {
 			acks[mService.service.Name] = ack
@@ -272,6 +274,13 @@ func (c Controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	enc := json.NewEncoder(w)
+
+	clusterAckMsg := c.registry.clusterAck()
+	if clusterAckMsg != "" {
+		healthResults.Description = fmt.Sprintf("%s Cluster is acknowledged: %s", healthResults.Description, clusterAckMsg)
+		healthResults.Ok = true
+	}
+
 	err := enc.Encode(healthResults)
 	if err != nil {
 		panic("Couldn't encode health results to ResponseWriter.")
@@ -315,13 +324,16 @@ func (c Controller) htmlHandler(w http.ResponseWriter, r *http.Request) {
 			hc)
 	}
 
+	clusterAck := c.registry.clusterAck()
+
 	param := &AggregateHealthCheck{
 		Environment:     *c.environment,
 		ValidCategories: strings.Join(validCategories, ", "),
 		IsHealthy:       health.Ok,
 		IsCritical:      health.Severity == 1,
 		HealthChecks:    healthChecks,
-		Ack:             aggAck,
+		ServicesAck:     aggAck,
+		ClusterAck:      clusterAck,
 	}
 	if err = mainTemplate.Execute(w, param); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)

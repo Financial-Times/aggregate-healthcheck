@@ -17,6 +17,7 @@ import (
 
 const (
 	servicesKeyPre      = "/ft/healthcheck"
+	clusterAckEtcdKey   = "/ft/config/aggregate-healthcheck/cluster-ack"
 	categoriesKeyPre    = "/ft/healthcheck-categories"
 	periodKeySuffix     = "/period_seconds"
 	resilientSuffix     = "/is_resilient"
@@ -71,9 +72,10 @@ type ServiceRegistry interface {
 	areResilient([]string) bool
 	measuredServices() map[string]MeasuredService
 	checker() HealthChecker
-	getAck(string) string
+	getServiceAck(string) string
 	disableCategoryIfSticky(string)
 	categories() map[string]Category
+	clusterAck() string
 	updateCachedAndBufferedHealth(*MeasuredService, *fthealth.HealthResult)
 }
 
@@ -86,6 +88,7 @@ type EtcdServiceRegistry struct {
 	services          servicesMap
 	_categories       categoriesMap
 	_measuredServices map[string]MeasuredService
+	_clusterAck       string
 }
 
 type EtcdHealthCheckKeysAPI interface {
@@ -98,7 +101,7 @@ func NewCocoServiceRegistry(etcd EtcdHealthCheckKeysAPI, vulcandAddr string, che
 	services := make(map[string]Service)
 	categories := make(map[string]Category)
 	measuredServices := make(map[string]MeasuredService)
-	return &EtcdServiceRegistry{sync.Mutex{}, etcd, time.Duration(60) * time.Second, vulcandAddr, checker, services, categories, measuredServices}
+	return &EtcdServiceRegistry{sync.Mutex{}, etcd, time.Duration(60) * time.Second, vulcandAddr, checker, services, categories, measuredServices, ""}
 }
 
 func (r *EtcdServiceRegistry) measuredServices() map[string]MeasuredService {
@@ -114,6 +117,44 @@ func (r *EtcdServiceRegistry) categories() map[string]Category {
 	defer r.Unlock()
 
 	return r._categories
+}
+
+func (r *EtcdServiceRegistry) clusterAck() string {
+	r.Lock()
+	defer r.Unlock()
+
+	return r._clusterAck
+}
+
+func (r *EtcdServiceRegistry) watchClusterAck() {
+	watcher := r.etcd.Watcher(clusterAckEtcdKey, &client.WatcherOptions{AfterIndex: 0, Recursive: true})
+	limiter := NewEventLimiter(func() {
+		r.redefineClusterAck()
+	}, r.etcdInterval)
+	for {
+		_, err := watcher.Next(context.Background())
+		if err != nil {
+			errorLogger.Printf("Error waiting for change under %v in etcd. %v\n Sleeping 10s...", clusterAckEtcdKey, err.Error())
+			time.Sleep(10 * time.Second)
+			continue
+		}
+		limiter.trigger <- true
+	}
+}
+
+func (r *EtcdServiceRegistry) redefineClusterAck() {
+	infoLogger.Print("Reloading cluster ack")
+	clusterAckResp, err := r.etcd.Get(context.Background(), clusterAckEtcdKey, &client.GetOptions{Sort: true})
+
+	r.Lock()
+	defer r.Unlock()
+	if err != nil {
+		r._clusterAck = ""
+		errorLogger.Printf("Failed to get value from %v: %v. Removing cluster ack message.", clusterAckEtcdKey, err.Error())
+		return
+	}
+
+	r._clusterAck = clusterAckResp.Node.Value
 }
 
 func (r *EtcdServiceRegistry) watchServices() {
@@ -204,7 +245,7 @@ func (r *EtcdServiceRegistry) redefineServiceList() {
 		if err == nil {
 			categories = append(categories, strings.Split(categoriesResp.Node.Value, ",")...)
 		}
-		ack := r.getAck(serviceNode.Key)
+		ack := r.getServiceAck(serviceNode.Key)
 		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: fmt.Sprintf(pathPre, name, path), Categories: categories, Ack: ack, ServiceKey: serviceNode.Key}
 	}
 	r.services = services
@@ -309,7 +350,7 @@ func (r *EtcdServiceRegistry) catEnabled(catKey string) (enabled bool) {
 	return
 }
 
-func (r *EtcdServiceRegistry) getAck(serviceKey string) string {
+func (r *EtcdServiceRegistry) getServiceAck(serviceKey string) string {
 
 	ackDetails, err := r.etcd.Get(context.Background(), serviceKey+ackSuffix, nil)
 	if err != nil {

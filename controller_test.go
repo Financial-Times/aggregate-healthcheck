@@ -42,7 +42,7 @@ func (r MockRegistry) checker() HealthChecker {
 	return args.Get(0).(HealthChecker)
 }
 
-func (r MockRegistry) getAck(serviceKey string) string {
+func (r MockRegistry) getServiceAck(serviceKey string) string {
 	args := r.Called(serviceKey)
 	return args.String(0)
 }
@@ -53,6 +53,10 @@ func (r MockRegistry) disableCategoryIfSticky(category string) {
 
 func (r MockRegistry) updateCachedAndBufferedHealth(service *MeasuredService, result *fthealth.HealthResult) {
 	r.Called(service, result)
+}
+
+func (r MockRegistry) clusterAck() string {
+	return ""
 }
 
 type MockHealthChecker struct {
@@ -107,7 +111,7 @@ func mockServices(r *MockRegistry, healthyServicesAndCategories map[string][]str
 	}
 
 	r.On("measuredServices").Return(measuredServices)
-	r.On("getAck", mock.MatchedBy(any)).Return("")
+	r.On("getServiceAck", mock.MatchedBy(any)).Return("")
 	r.On("updateCachedAndBufferedHealth", mock.MatchedBy(any), mock.MatchedBy(any)).Return()
 }
 

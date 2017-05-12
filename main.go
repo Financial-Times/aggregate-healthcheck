@@ -97,6 +97,7 @@ func main() {
 		registry := NewCocoServiceRegistry(etcdKeysAPI, *vulcandAddr, checker)
 		registry.redefineCategoryList()
 		registry.redefineServiceList()
+		registry.redefineClusterAck()
 		registry.updateMeasuredServiceList()
 
 		go registry.watchServices()

@@ -111,10 +111,12 @@ func main() {
 
 		handler := controller.handleHealthcheck
 		gtgHandler := controller.handleGoodToGo
+		aggHandler := controller.handleAggHealthcheck
 		r := mux.NewRouter()
 		r.HandleFunc("/", handler)
 		r.HandleFunc("/__health", handler)
 		r.HandleFunc("/__gtg", gtgHandler)
+		r.HandleFunc("/__agghealth", aggHandler)
 		err = http.ListenAndServe(":8080", r)
 		if err != nil {
 			errorLogger.Println("Can't set up HTTP listener on 8080.")

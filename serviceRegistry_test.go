@@ -48,7 +48,7 @@ func TestRedefineCategoryListEmpty(t *testing.T) {
 
 	etcd := TestEtcdKeysAPI{&client.Response{Node: &categoryFolder}, nil}
 
-	registry := NewCocoServiceRegistry(etcd, "127.0.0.1", nil)
+	registry := NewCocoServiceRegistry(etcd, "127.0.0.1", nil, "test")
 
 	registry.redefineCategoryList()
 
@@ -64,7 +64,7 @@ func TestRedefineCategoryList(t *testing.T) {
 
 	etcd := TestEtcdKeysAPI{&client.Response{Node: &categoryFolder}, nil}
 
-	registry := NewCocoServiceRegistry(etcd, "127.0.0.1", nil)
+	registry := NewCocoServiceRegistry(etcd, "127.0.0.1", nil, "test")
 
 	registry.redefineCategoryList()
 
@@ -85,7 +85,7 @@ func TestWatchCategories(t *testing.T) {
 
 	etcd := TestEtcdKeysAPI{&client.Response{Node: &categoryFolder}, &TestWatcher{&client.Response{Node: &categoryFolder}}}
 
-	registry := NewCocoServiceRegistry(etcd, "127.0.0.1", nil)
+	registry := NewCocoServiceRegistry(etcd, "127.0.0.1", nil, "test")
 	registry.etcdInterval = time.Second
 
 	go registry.watchCategories()

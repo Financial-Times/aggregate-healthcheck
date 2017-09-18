@@ -1,16 +1,17 @@
 package main
 
 import (
-	etcdClient "github.com/coreos/etcd/client"
-	"github.com/gorilla/mux"
-	"github.com/jawher/mow.cli"
-	"golang.org/x/net/proxy"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	etcdClient "github.com/coreos/etcd/client"
+	"github.com/gorilla/mux"
+	"github.com/jawher/mow.cli"
+	"golang.org/x/net/proxy"
 )
 
 const logPattern = log.Ldate | log.Ltime | log.Lmicroseconds | log.Lshortfile | log.LUTC
@@ -94,7 +95,7 @@ func main() {
 		}
 		etcdKeysAPI := etcdClient.NewKeysAPI(etcd)
 
-		registry := NewCocoServiceRegistry(etcdKeysAPI, *vulcandAddr, checker)
+		registry := NewCocoServiceRegistry(etcdKeysAPI, *vulcandAddr, checker, *environment)
 		registry.redefineCategoryList()
 		registry.redefineServiceList()
 		registry.redefineClusterAck()

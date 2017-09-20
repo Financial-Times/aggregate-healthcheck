@@ -88,9 +88,9 @@ func NewServiceHealthCheck(service Service, checker HealthChecker) fthealth.Chec
 		severity = 1
 	}
 	return fthealth.Check{
-		BusinessImpact:   "This represents a degradation of the overall service health.  For more detailed information, look at the service health endpoint.",
+		BusinessImpact:   "This represents a degradation of the overall service health.  For more detailed information, look at the service health endpoint listed under Panic Guide.",
 		Name:             service.Name,
-		PanicGuide:       fmt.Sprintf("https://%s-up.ft.com/%s", service.Environment, service.Path),
+		PanicGuide:       fmt.Sprintf("https://%s-up.ft.com%s", service.Environment, service.Path),
 		Severity:         severity,
 		TechnicalSummary: "The service is not healthy. Please check the panic guide.",
 		Checker: func() (string, error) {

@@ -232,6 +232,53 @@ func (c Controller) handleHealthcheck(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+/** 
+ * Surfaces an endpoint which returns checks from all services in the cluster
+ *
+ * Note: doesn't currently avail of caching, so may be a little slow.
+ */
+func (c Controller) handleAggHealthcheck(w http.ResponseWriter, r *http.Request) {
+
+	var response struct {
+		SchemaVersion         float64 `json:"schemaVersion"`
+		AggregationSystemCode string  `json:"aggregationSystemCode,omitempty"`
+		Checks                []check `json:"checks"`
+	}
+
+	// Hardcode the System Code of the system doing the aggregation
+	response.AggregationSystemCode = "aggregate-healthcheck"
+	response.SchemaVersion = 1
+
+	// Fetch each service's checks and annotate them with the service's system code
+	for _, mService := range c.registry.measuredServices() {
+		serviceHealthcheck, _ := c.registry.checker().FetchHealthcheck(*mService.service)
+		for _, check := range serviceHealthcheck.Checks {
+			check.CheckSystemCode = serviceHealthcheck.SystemCode
+
+			// Ideally all healthchecks would specify a system code, but for legacy reasons fallback to using the service name
+			if (serviceHealthcheck.SystemCode == "") {
+				check.CheckSystemCode = mService.service.Name
+			}
+
+			// Similarly for the check ID, fallback to name
+			if (check.ID == "") {
+				check.ID = check.Name
+			}
+			response.Checks = append(response.Checks, check)
+		}
+	}
+
+	// Return as JSON regardless of accept header
+	w.Header().Set("Content-Type", "application/json")
+
+	enc := json.NewEncoder(w)
+
+	err := enc.Encode(response)
+	if err != nil {
+		panic("Couldn't encode aggregate health results to ResponseWriter.")
+	}
+}
+
 func (c Controller) handleGoodToGo(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 

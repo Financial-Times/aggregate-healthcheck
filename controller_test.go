@@ -73,6 +73,11 @@ func (c *MockHealthChecker) IsHighSeverity(service string) bool {
 	return args.Bool(0)
 }
 
+func (c *MockHealthChecker) FetchHealthcheck(service Service) (*healthcheckResponse, error) {
+	health := &healthcheckResponse{}
+	return health, nil
+}
+
 func mockCategories(r *MockRegistry, enabled []string, disabled []string) {
 	categories := make(map[string]Category)
 	for _, cat := range enabled {

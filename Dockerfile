@@ -2,6 +2,7 @@ FROM golang:1.8-alpine
 
 ENV PROJECT=aggregate-healthcheck
 COPY . /${PROJECT}-sources/
+COPY main.html /main.html
 
 RUN apk --no-cache --virtual .build-dependencies add git \
   && ORG_PATH="github.com/Financial-Times" \

@@ -10,9 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"context"
+
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 	"github.com/coreos/etcd/client"
-	"golang.org/x/net/context"
 )
 
 const (

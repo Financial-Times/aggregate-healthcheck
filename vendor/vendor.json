@@ -99,12 +99,6 @@
 			"revisionTime": "2017-09-18T22:25:52Z"
 		},
 		{
-			"checksumSHA1": "dr5+PfIRzXeN+l1VG+s0lea9qz8=",
-			"path": "golang.org/x/net/context",
-			"revision": "8351a756f30f1297fe94bbf4b767ec589c6ea6d0",
-			"revisionTime": "2017-09-15T01:39:56Z"
-		},
-		{
 			"checksumSHA1": "QEm/dePZ0lOnyOs+m22KjXfJ/IU=",
 			"path": "golang.org/x/net/proxy",
 			"revision": "8351a756f30f1297fe94bbf4b767ec589c6ea6d0",

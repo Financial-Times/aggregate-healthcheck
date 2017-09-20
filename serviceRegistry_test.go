@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"context"
+
 	"github.com/coreos/etcd/client"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/net/context"
 )
 
 type TestEtcdKeysAPI struct {

@@ -12,16 +12,27 @@ import (
 )
 
 type healthcheckResponse struct {
-	Name   string
-	Checks []struct {
-		Name string
-		OK   bool
-	}
+	SystemCode string
+	Name       string
+	Checks     []check
+}
+type check struct {
+	ID               string    `json:"id"`
+	Name             string    `json:"name"`
+	Severity         uint8     `json:"severity"`
+	BusinessImpact   string    `json:"businessImpact"`
+	TechnicalSummary string    `json:"technicalSummary"`
+	PanicGuide       string    `json:"panicGuide"`
+	LastUpdated      string    `json:"lastUpdated"`
+	CheckOutput      string    `json:"checkOutput"`
+	CheckSystemCode  string    `json:"checkSystemCode"`
+	OK               bool      `json:"ok"`
 }
 
 type HealthChecker interface {
 	Check(Service) (string, error)
 	IsHighSeverity(string) bool
+	FetchHealthcheck(Service) (*healthcheckResponse, error)
 }
 
 type HTTPHealthChecker struct {
@@ -34,17 +45,19 @@ func NewHTTPHealthChecker(client *http.Client, sos []string) *HTTPHealthChecker 
 	return &HTTPHealthChecker{client: client, sos: sos}
 }
 
-func (c *HTTPHealthChecker) Check(service Service) (string, error) {
+func (c *HTTPHealthChecker) FetchHealthcheck(service Service) (*healthcheckResponse, error) {
+	health := &healthcheckResponse{}
+
 	req, err := http.NewRequest("GET", fmt.Sprintf("http://%s%s", service.Host, service.Path), nil)
 	if err != nil {
-		return "", errors.New("Error constructing healthcheck request: " + err.Error())
+		return health, errors.New("Error constructing healthcheck request: " + err.Error())
 	}
 
 	req.Host = service.Name
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return "", errors.New("Error performing healthcheck: " + err.Error())
+		return health, errors.New("Error performing healthcheck: " + err.Error())
 	}
 
 	defer func() {
@@ -53,17 +66,23 @@ func (c *HTTPHealthChecker) Check(service Service) (string, error) {
 	}()
 
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("Healthcheck endpoint returned non-200 status (%v)", resp.Status)
+		return health, fmt.Errorf("Healthcheck endpoint returned non-200 status (%v)", resp.Status)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", errors.New("Error reading healthcheck response: " + err.Error())
+		return health, errors.New("Error reading healthcheck response: " + err.Error())
 	}
 
-	health := &healthcheckResponse{}
 	if err := json.Unmarshal(body, &health); err != nil {
-		return "", errors.New("Error parsing healthcheck response: " + err.Error())
+		return health, errors.New("Error parsing healthcheck response: " + err.Error())
+	}
+	return health, nil
+}
+func (c *HTTPHealthChecker) Check(service Service) (string, error) {
+	health, err := c.FetchHealthcheck(service)
+	if (err != nil) {
+		return "", err
 	}
 
 	failed := []string{}

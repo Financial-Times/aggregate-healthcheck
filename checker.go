@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
+
+	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 )
 
 type healthcheckResponse struct {
@@ -37,8 +38,7 @@ type HealthChecker interface {
 
 type HTTPHealthChecker struct {
 	client *http.Client
-	sos []string
-
+	sos    []string
 }
 
 func NewHTTPHealthChecker(client *http.Client, sos []string) *HTTPHealthChecker {
@@ -109,9 +109,9 @@ func NewServiceHealthCheck(service Service, checker HealthChecker) fthealth.Chec
 	return fthealth.Check{
 		BusinessImpact:   "On its own this failure does not have a business impact but it represents a degradation of the cluster health.",
 		Name:             service.Name,
-		PanicGuide:       "https://sites.google.com/a/ft.com/technology/systems/dynamic-semantic-publishing/coco/runbook",
+		PanicGuide:       "https://sites.google.com/a/ft.com/universal-publishing/ops-guides",
 		Severity:         severity,
-		TechnicalSummary: "The service is not healthy. Please check the panic guide.",
+		TechnicalSummary: fmt.Sprintf("The service is not healthy. For detailed information, look at the service healthcheck:  https://%s-up.ft.com%s", service.Environment, service.Path),
 		Checker: func() (string, error) {
 			return checker.Check(service)
 		},

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"fmt"
+
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 )
 
@@ -315,6 +316,12 @@ func (c Controller) catEnabled(validCats []string) bool {
 func (c Controller) jsonHandler(w http.ResponseWriter, r *http.Request) {
 	categories := parseCategories(r.URL)
 	healthResults, validCategories, _ := c.buildHealthResultFor(categories, useCache(r.URL))
+	for i, check := range healthResults.Checks {
+		if check.Ack != "" {
+			healthResults.Checks[i].Output = "ACKED - " + check.Output
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	if len(validCategories) == 0 {
 		w.WriteHeader(http.StatusBadRequest)

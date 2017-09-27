@@ -10,9 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"context"
+
 	fthealth "github.com/Financial-Times/go-fthealth/v1a"
 	"github.com/coreos/etcd/client"
-	"golang.org/x/net/context"
 )
 
 const (
@@ -35,12 +36,13 @@ const (
 var defaultCategory = Category{defaultCategoryName, time.Second * 60, false, true, false}
 
 type Service struct {
-	Name       string
-	Host       string
-	Path       string
-	Categories []string
-	Ack        string
-	ServiceKey string
+	Name        string
+	Environment string
+	Host        string
+	Path        string
+	Categories  []string
+	Ack         string
+	ServiceKey  string
 }
 
 type Category struct {
@@ -89,6 +91,7 @@ type EtcdServiceRegistry struct {
 	_categories       categoriesMap
 	_measuredServices map[string]MeasuredService
 	_clusterAck       string
+	environment       string
 }
 
 type EtcdHealthCheckKeysAPI interface {
@@ -97,11 +100,11 @@ type EtcdHealthCheckKeysAPI interface {
 	Watcher(key string, opts *client.WatcherOptions) client.Watcher
 }
 
-func NewCocoServiceRegistry(etcd EtcdHealthCheckKeysAPI, vulcandAddr string, checker HealthChecker) *EtcdServiceRegistry {
+func NewCocoServiceRegistry(etcd EtcdHealthCheckKeysAPI, vulcandAddr string, checker HealthChecker, environment string) *EtcdServiceRegistry {
 	services := make(map[string]Service)
 	categories := make(map[string]Category)
 	measuredServices := make(map[string]MeasuredService)
-	return &EtcdServiceRegistry{sync.Mutex{}, etcd, time.Duration(60) * time.Second, vulcandAddr, checker, services, categories, measuredServices, ""}
+	return &EtcdServiceRegistry{sync.Mutex{}, etcd, time.Duration(60) * time.Second, vulcandAddr, checker, services, categories, measuredServices, "", environment}
 }
 
 func (r *EtcdServiceRegistry) measuredServices() map[string]MeasuredService {
@@ -246,7 +249,7 @@ func (r *EtcdServiceRegistry) redefineServiceList() {
 			categories = append(categories, strings.Split(categoriesResp.Node.Value, ",")...)
 		}
 		ack := r.getServiceAck(serviceNode.Key)
-		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: fmt.Sprintf(pathPre, name, path), Categories: categories, Ack: ack, ServiceKey: serviceNode.Key}
+		services[name] = Service{Name: name, Host: r.vulcandAddr, Path: fmt.Sprintf(pathPre, name, path), Categories: categories, Ack: ack, ServiceKey: serviceNode.Key, Environment: r.environment}
 	}
 	r.services = services
 	infoLogger.Printf("%v", r.services)

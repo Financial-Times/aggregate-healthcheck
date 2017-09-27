@@ -2,3 +2,5 @@ aggregate-healthcheck
 *.idea
 *.exe
 /.project
+
+vendor/*/

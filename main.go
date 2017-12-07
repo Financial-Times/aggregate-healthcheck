@@ -60,7 +60,7 @@ func main() {
 	})
 	severityOneApps := app.String(cli.StringOpt{
 		Name:   "sev-1-apps",
-		Value:  "synthetic-list-publication-monitor,synthetic-article-publication-monitor,synthetic-image-publication-monitor,publish-availability-monitor,annotations-monitoring,splunk-event-reader",
+		Value:  "synthetic-list-publication-monitor,synthetic-article-publication-monitor,synthetic-image-publication-monitor,publish-availability-monitor,annotations-monitoring",
 		Desc:   "Comma-separated list of sev 1 apps",
 		EnvVar: "SEV_1_APPS",
 	})
